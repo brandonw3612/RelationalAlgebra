@@ -34,11 +34,44 @@ inductive Derives (F : Finset (FunctionalDependency α)) : FunctionalDependency 
 /-- Notation for derivation of functional dependencies. -/
 infix:50 " ⊢ " => Derives
 
--- Do we need a formal proof of Armstrong's axioms' soundness and completeness? I think yes.
-
+/-- Soundness of Armstrong's Axioms: if F ⊢ f, then F ⊨ f. -/
 theorem armstrong_soundness {F : Finset (FunctionalDependency α)} {f : FunctionalDependency α} :
   F ⊢ f → F ⊨ f := by
-  sorry
+  intro h_der μ r h_sat
+  induction h_der with
+  | member f h_in => exact h_sat f h_in
+  | reflexivity X Y h_y_subset_x =>
+    intro t₁ t₂ h_t₁ h_t₂ h_eq_x s h_s_in_y
+    have h_s_in_x : s ∈ X := h_y_subset_x h_s_in_y
+    exact h_eq_x s h_s_in_x
+  | augmentation X Y Z h_der_xy h_xy_holds =>
+    intro t₁ t₂ h_t₁ h_t₂ h_eq_xz s h_s_in_yz
+    cases Finset.mem_union.mp h_s_in_yz with
+    | inl h_s_in_y =>
+      have h_eq_x : ∀ a ∈ X, t₁ a = t₂ a := by
+        intro a h_a_in_x
+        have h_a_in_xz : a ∈ X ∪ Z := by simp [h_a_in_x]
+        exact h_eq_xz a h_a_in_xz
+      have h_eq_y : ∀ a ∈ Y, t₁ a = t₂ a := by
+        intro a h_a_in_y
+        exact h_xy_holds t₁ t₂ h_t₁ h_t₂ h_eq_x a h_a_in_y
+      exact h_eq_y s h_s_in_y
+    | inr h_a_in_z =>
+      have h_eq_z : ∀ a ∈ Z, t₁ a = t₂ a := by
+        intro a h_a_in_z
+        have h_a_in_xz : a ∈ X ∪ Z := by simp [h_a_in_z]
+        exact h_eq_xz a h_a_in_xz
+      exact h_eq_z s h_a_in_z
+  | transitivity X Y Z h_der_xy h_der_yz h_xy_holds h_yz_holds =>
+    intro t₁ t₂ h_t₁ h_t₂ h_eq_x s h_s_in_z
+    have h_eq_y : ∀ a ∈ Y, t₁ a = t₂ a := by
+      intro a h_a_in_y
+      exact h_xy_holds t₁ t₂ h_t₁ h_t₂ h_eq_x a h_a_in_y
+    have h_eq_z : ∀ a ∈ Z, t₁ a = t₂ a := by
+      intro a h_a_in_z
+      have h_a_in_yz : a ∈ Y ∪ Z := by simp [h_a_in_z]
+      exact h_yz_holds t₁ t₂ h_t₁ h_t₂ h_eq_y a h_a_in_z
+    exact h_eq_z s h_s_in_z
 
 theorem armstrong_completeness {F : Finset (FunctionalDependency α)} {f : FunctionalDependency α} :
   F ⊨ f → F ⊢ f := by
