@@ -1,6 +1,9 @@
 import RelationalAlgebra.NF.FuncDep
 import RelationalAlgebra.NF.Misc
 
+import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Finset.Lattice.Basic
+
 namespace RM
 
 namespace NF
@@ -52,26 +55,16 @@ theorem armstrong_soundness {F : Finset (FunctionalDependency α)} {f : Function
         intro a h_a_in_x
         have h_a_in_xz : a ∈ X ∪ Z := by simp [h_a_in_x]
         exact h_eq_xz a h_a_in_xz
-      have h_eq_y : ∀ a ∈ Y, t₁ a = t₂ a := by
-        intro a h_a_in_y
-        exact h_xy_holds t₁ t₂ h_t₁ h_t₂ h_eq_x a h_a_in_y
-      exact h_eq_y s h_s_in_y
-    | inr h_a_in_z =>
-      have h_eq_z : ∀ a ∈ Z, t₁ a = t₂ a := by
-        intro a h_a_in_z
-        have h_a_in_xz : a ∈ X ∪ Z := by simp [h_a_in_z]
-        exact h_eq_xz a h_a_in_xz
-      exact h_eq_z s h_a_in_z
+      exact h_xy_holds t₁ t₂ h_t₁ h_t₂ h_eq_x s h_s_in_y
+    | inr h_s_in_z =>
+      have h_s_in_xz : s ∈ X ∪ Z := by simp [h_s_in_z]
+      exact h_eq_xz s h_s_in_xz
   | transitivity X Y Z h_der_xy h_der_yz h_xy_holds h_yz_holds =>
     intro t₁ t₂ h_t₁ h_t₂ h_eq_x s h_s_in_z
     have h_eq_y : ∀ a ∈ Y, t₁ a = t₂ a := by
       intro a h_a_in_y
       exact h_xy_holds t₁ t₂ h_t₁ h_t₂ h_eq_x a h_a_in_y
-    have h_eq_z : ∀ a ∈ Z, t₁ a = t₂ a := by
-      intro a h_a_in_z
-      have h_a_in_yz : a ∈ Y ∪ Z := by simp [h_a_in_z]
-      exact h_yz_holds t₁ t₂ h_t₁ h_t₂ h_eq_y a h_a_in_z
-    exact h_eq_z s h_s_in_z
+    exact h_yz_holds t₁ t₂ h_t₁ h_t₂ h_eq_y s h_s_in_z
 
 theorem armstrong_completeness {F : Finset (FunctionalDependency α)} {f : FunctionalDependency α} :
   F ⊨ f → F ⊢ f := by
@@ -80,17 +73,34 @@ theorem armstrong_completeness {F : Finset (FunctionalDependency α)} {f : Funct
 /-- b₁ (Union): if X -> Y and X -> Z, then X -> YZ. -/
 theorem derives_union {F : Finset (FunctionalDependency α)} {X Y Z : Finset α} :
   F ⊢ (X -> Y) → F ⊢ (X -> Z) → F ⊢ (X -> Y ∪ Z) := by
-  sorry
+  intro h_der_x_y h_der_x_z
+  have h_der_x_xx_xy : F ⊢ (X -> Y ∪ X) := by simpa using Derives.augmentation X Y X h_der_x_y
+  have h_der_x_xy_yz : F ⊢ (Y ∪ X -> Y ∪ Z) := by
+    apply Derives.augmentation X Z Y at h_der_x_z
+    rw [Finset.union_comm X Y, Finset.union_comm Z Y] at h_der_x_z
+    exact h_der_x_z
+  exact Derives.transitivity X (Y ∪ X) (Y ∪ Z) h_der_x_xx_xy h_der_x_xy_yz
 
 /-- b₂ (Decomposition): if X -> YZ, then X -> Y and X -> Z. -/
 theorem derives_decomposition {F : Finset (FunctionalDependency α)} {X Y Z : Finset α} :
   F ⊢ (X -> Y ∪ Z) → F ⊢ (X -> Y) ∧ F ⊢ (X -> Z) := by
-  sorry
+  intro h_der_x_yz
+  constructor
+  {
+    have h_der_yz_y : F ⊢ (Y ∪ Z -> Y) := by simpa using Derives.reflexivity (Y ∪ Z) Y
+    exact Derives.transitivity X (Y ∪ Z) Y h_der_x_yz h_der_yz_y
+  }
+  {
+    have h_der_yz_z : F ⊢ (Y ∪ Z -> Z) := by simpa using Derives.reflexivity (Y ∪ Z) Z
+    exact Derives.transitivity X (Y ∪ Z) Z h_der_x_yz h_der_yz_z
+  }
 
 /-- b₃ (Pseudotransitivity): if X -> Y and YZ -> W, then XZ -> W. -/
 theorem derives_pseudotransitivity {F : Finset (FunctionalDependency α)} {X Y Z W : Finset α} :
-  F ⊢ (X -> Y) → F ⊢ (Y ∪ Z -> W) → F ⊢ (X ∪ Z -> W) :=
-  sorry
+  F ⊢ (X -> Y) → F ⊢ (Y ∪ Z -> W) → F ⊢ (X ∪ Z -> W) := by
+  intro h_der_x_y h_der_yz_w
+  have h_der_xz_yz : F ⊢ (X ∪ Z -> Y ∪ Z) := by simpa using Derives.augmentation X Y Z h_der_x_y
+  exact Derives.transitivity (X ∪ Z) (Y ∪ Z) W h_der_xz_yz h_der_yz_w
 
 end Armstrong
 
