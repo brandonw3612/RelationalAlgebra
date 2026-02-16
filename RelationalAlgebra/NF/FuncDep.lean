@@ -13,6 +13,7 @@ variable {α μ : Type} [DecidableEq α]
 structure FunctionalDependency (α : Type) where
   lhs : Finset α
   rhs : Finset α
+deriving DecidableEq
 
 /-- Notation for functional dependencies. -/
 infix:50 " -> " => FunctionalDependency.mk
