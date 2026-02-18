@@ -24,7 +24,7 @@ def FunctionalDependency.holds (fd : FunctionalDependency α) (r : RelationInsta
     (∀ a ∈ fd.lhs, t₁ a = t₂ a) → (∀ b ∈ fd.rhs, t₁ b = t₂ b)
 
 /-- Trivial dependency: RHS is contained in LHS. -/
-def FunctionalDependency.isTrivial (fd : FunctionalDependency α) : Prop :=
+def FunctionalDependency.is_trivial (fd : FunctionalDependency α) : Prop :=
   fd.rhs ⊆ fd.lhs
 
 end NF
@@ -34,3 +34,12 @@ def RelationInstance.satisfies (r : RelationInstance α μ) (F : Finset (NF.Func
   ∀ f ∈ F, f.holds r
 
 end RM
+
+namespace Finset
+
+variable {α : Type} [DecidableEq α]
+
+def is_closed_under (S : Finset α) (F : Finset (RM.NF.FunctionalDependency α)) : Prop :=
+  ∀ fd ∈ F, fd.lhs ⊆ S → fd.rhs ⊆ S
+
+end Finset
