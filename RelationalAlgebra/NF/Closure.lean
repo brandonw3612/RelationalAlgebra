@@ -121,7 +121,7 @@ def ac_seq (F : Finset (FunctionalDependency α)) (X : Finset α) (n : ℕ) : Fi
 /-- Simply unfold the iteration by one layer. -/
 lemma ac_seq_succ (F : Finset (FunctionalDependency α)) (X : Finset α) (n : ℕ) :
   ac_seq F X (n + 1) = attr_closure_impl_step F (ac_seq F X n) := by
-  simp only [ac_seq, Function.iterate_succ_apply']
+  simp [ac_seq, Function.iterate_succ_apply']
 
 /-- Implementation of attribute set closure, where we iterate the single step |F| times (in the worst case). -/
 def attr_closure_impl (F : Finset (FunctionalDependency α)) (X : Finset α) : Finset α :=
@@ -148,8 +148,7 @@ lemma attr_closure_step_sound {F : Finset (FunctionalDependency α)} {X : Finset
           · apply Derives.reflexivity
             simp [Finset.mem_filter.mp h_fd]
           · apply Derives.member
-            have h_fd_in_F : fd ∈ F := by apply Finset.mem_of_subset h_s_subset_F h_fd
-            exact h_fd_in_F
+            exact Finset.mem_of_subset h_s_subset_F h_fd
         · exact h_ih h_s''
     apply h_s'_sup s
     simp
@@ -169,21 +168,19 @@ lemma attr_closure_sound {F : Finset (FunctionalDependency α)} {X : Finset α} 
 lemma attr_closure_subset_step {F : Finset (FunctionalDependency α)} {X : Finset α} :
   X ⊆ attr_closure_impl_step F X := by
   intro a ha
-  simp only [attr_closure_impl_step, Finset.mem_union]
+  simp [attr_closure_impl_step]
   exact Or.inl ha
 
 /-- Subset property of the attribute set closure implementation. -/
 lemma attr_closure_subset_impl {F : Finset (FunctionalDependency α)} {X : Finset α} :
   X ⊆ attr_closure_impl F X := by
-  have h_step : ∀ n, X ⊆ ac_seq F X n := by
-    intro n
-    induction n with
+  rw [attr_closure_impl]
+  induction F.card with
     | zero => exact fun a ha => ha
     | succ n ih =>
       intro a ha
       simp [ac_seq_succ]
       exact attr_closure_subset_step (ih ha)
-  exact h_step F.card
 
 /-- X is a subset of the result for a single step. -/
 lemma subset_step (F : Finset (FunctionalDependency α)) (X : Finset α) :
@@ -194,7 +191,7 @@ lemma subset_step (F : Finset (FunctionalDependency α)) (X : Finset α) :
 lemma filtered_mono {F : Finset (FunctionalDependency α)} {X Y : Finset α} (h : X ⊆ Y) :
   left_filter F X ⊆ left_filter F Y := by
   intro fd hfd
-  simp only [left_filter, Finset.mem_filter] at hfd ⊢
+  simp [left_filter, Finset.mem_filter] at hfd ⊢
   exact ⟨hfd.1, fun a ha => h (hfd.2 ha)⟩
 
 /-- When left-filter reaches the fixed point, the single step also does. -/
@@ -227,8 +224,7 @@ lemma seq_fixed_of_eq {F : Finset (FunctionalDependency α)} {X : Finset α} {k 
   | zero => rfl
   | succ d ih =>
     have heq : k + (d + 1) = k + d + 1 := by omega
-    rw [heq, ac_seq_succ, ih, h_step]
-    simp
+    simp [heq, ac_seq_succ, ih, h_step]
 
 /-- Lower bound for strict monotonicity. -/
 lemma filtered_card_ge_succ (F : Finset (FunctionalDependency α)) (X : Finset α) (k : ℕ)
@@ -266,9 +262,8 @@ lemma seq_stabilizes (F : Finset (FunctionalDependency α)) (X : Finset α) :
   · have h_empty : left_filter F (ac_seq F X 0) = ∅ := Finset.card_eq_zero.mp h_zero
     have h_eq : ac_seq F X 1 = ac_seq F X 0 := by
       change attr_closure_impl_step F X = X
-      simp [attr_closure_impl_step, left_filter]
       rw [ac_seq, Function.iterate_zero, id, left_filter] at h_empty
-      simp [h_empty]
+      simp [attr_closure_impl_step, left_filter, h_empty]
     have h_all : ∀ n ≥ 0, ac_seq F X n = ac_seq F X 0 := fun n hn => seq_fixed_of_eq h_eq hn
     rw [h_all (F.card + 1) (Nat.zero_le _), h_all F.card (Nat.zero_le _)]
   · have h_pos : 0 < (left_filter F (ac_seq F X 0)).card := Nat.pos_of_ne_zero h_zero
@@ -317,7 +312,7 @@ def counterexample_relation (U S : Finset α) : RelationInstance α Bool where
   tuples := {t_all_true U, t_closure U S}
   validSchema := by
     intro t ht
-    simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at ht
+    simp [Set.mem_insert_iff, Set.mem_singleton_iff] at ht
     ext x
     rcases ht with rfl | rfl
     · rfl
@@ -330,11 +325,10 @@ lemma counterexample_sat_F {U S : Finset α} {F : Finset (FunctionalDependency �
   intro fd hfd
   have hU := h_F_sub_U fd hfd
   intro t1 t2 ht1 ht2 h_agree_lhs
-  simp only [counterexample_relation, Set.mem_insert_iff, Set.mem_singleton_iff] at ht1 ht2
+  simp [counterexample_relation, Set.mem_insert_iff, Set.mem_singleton_iff] at ht1 ht2
   rcases ht1 with rfl | rfl <;> rcases ht2 with rfl | rfl
   -- Case 1: t1 = t_all_true, t2 = t_all_true
-  · intro a ha
-    rfl
+  · simp
   -- Case 2: t1 = t_all_true, t2 = t_closure
   · have h_lhs_sub_S : fd.lhs ⊆ S := by
       intro a ha
@@ -356,8 +350,7 @@ lemma counterexample_sat_F {U S : Finset α} {F : Finset (FunctionalDependency �
     intro a ha
     simp [t_all_true, t_closure, h_rhs_sub_S ha]
   -- Case 4: t1 = t_closure, t2 = t_closure
-  · intro a ha
-    rfl
+  · simp
 
 /-- If the FD X -> Y holds on the counterexample relation instance, then Y must be a subset of S. -/
 lemma subset_of_closure_if_holds {U X Y S : Finset α}
@@ -395,11 +388,11 @@ lemma attr_closure_complete {F : Finset (FunctionalDependency α)} {X Y : Finset
     constructor
     · intro a ha
       apply Finset.mem_union.mpr; right
-      simp only [Finset.mem_sup, Finset.mem_union]
+      simp [Finset.mem_sup, Finset.mem_union]
       exact ⟨fd, hfd, Or.inl ha⟩
     · intro a ha
       apply Finset.mem_union.mpr; right
-      simp only [Finset.mem_sup, Finset.mem_union]
+      simp [Finset.mem_sup, Finset.mem_union]
       exact ⟨fd, hfd, Or.inr ha⟩
   have h_implies : F ⊨ (X -> Y) := armstrong_sound h_der
   have h_sat : (counterexample_relation U S).satisfies F :=
@@ -418,14 +411,7 @@ theorem armstrong_complete {F : Finset (FunctionalDependency α)} {f : Functiona
   -- Step 1: Let S be the attribute closure of f.lhs.
   set S := attr_closure_impl F X
   -- Prove that S is closed under F.
-  have h_closed : S.is_closed_under F := by
-    intro fd h_fd_in_F h_lhs_sub_S
-    have h1 : F ⊢ (X -> S) := attr_closure_sound
-    have h2 : F ⊢ (S -> fd.lhs) := Derives.reflexivity S fd.lhs h_lhs_sub_S
-    have h3 : F ⊢ (fd.lhs -> fd.rhs) := Derives.member fd h_fd_in_F
-    have h4 : F ⊢ (X -> fd.lhs) := Derives.transitivity X S fd.lhs h1 h2
-    have h5 : F ⊢ (X -> fd.rhs) := Derives.transitivity X fd.lhs fd.rhs h4 h3
-    exact attr_closure_complete h5
+  have h_closed : S.is_closed_under F := impl_closed
   -- Step 2: Define a universe U that contains all attributes from f and F.
   set U := X ∪ Y ∪ F.sup (fun fd => fd.lhs ∪ fd.rhs)
   have h_Y_sub_U : Y ⊆ U := by
@@ -441,18 +427,18 @@ theorem armstrong_complete {F : Finset (FunctionalDependency α)} {f : Functiona
     · intro a ha
       apply Finset.mem_union.mpr
       right
-      simp only [Finset.mem_sup, Finset.mem_union]
+      simp [Finset.mem_sup, Finset.mem_union]
       exact ⟨fd, hfd, Or.inl ha⟩
     · intro a ha
       apply Finset.mem_union.mpr
       right
-      simp only [Finset.mem_sup, Finset.mem_union]
+      simp [Finset.mem_sup, Finset.mem_union]
       exact ⟨fd, hfd, Or.inr ha⟩
   -- Step 3: Instantiate the counterexample relation.
-  set cer := counterexample_relation U S
-  have h_sat : cer.satisfies F := counterexample_sat_F h_F_sub_U h_closed
+  set r := counterexample_relation U S
+  have h_sat : r.satisfies F := counterexample_sat_F h_F_sub_U h_closed
   -- Because F ⊨ f, the counterexample relation must satisfy f.
-  have h_f_holds : f.holds cer :=  h_implies cer h_sat
+  have h_f_holds : f.holds r :=  h_implies r h_sat
   -- Step 4: Prove X is a subset of its own closure S.
   have h_X_sub_S : X ⊆ S := by
     have h_ref : F ⊢ (X -> X) := Derives.reflexivity X X (subset_refl X)
@@ -463,6 +449,13 @@ theorem armstrong_complete {F : Finset (FunctionalDependency α)} {f : Functiona
   have h_S_sound : F ⊢ (X -> S) := attr_closure_sound
   have h_Y_ref : F ⊢ (S -> Y) := Derives.reflexivity S Y h_Y_sub_S
   exact Derives.transitivity X S Y h_S_sound h_Y_ref
+
+/-- Armstrong's axioms are correct, given their soundness and completeness. -/
+theorem armstrong_correct {F : Finset (FunctionalDependency α)} {f : FunctionalDependency α} :
+  F ⊢ f ↔ F ⊨ f := by
+  constructor
+  · exact armstrong_sound
+  · exact armstrong_complete
 
 /-- Prove that the computed attribute closure is correct with respect to the semantic definition of attribute closure. -/
 theorem attr_closure_impl_correct {F : Finset (FunctionalDependency α)} {X : Finset α} :
