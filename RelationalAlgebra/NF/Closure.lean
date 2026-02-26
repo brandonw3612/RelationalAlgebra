@@ -182,17 +182,14 @@ lemma attr_closure_subset_impl {F : Finset (FunctionalDependency α)} {X : Finse
       simp [ac_seq_succ]
       exact attr_closure_subset_step (ih ha)
 
-/-- X is a subset of the result for a single step. -/
-lemma subset_step (F : Finset (FunctionalDependency α)) (X : Finset α) :
-  X ⊆ attr_closure_impl_step F X := by
-  simp [attr_closure_impl_step]
-
 /-- left-filter is monotone with respect to the attribute set. -/
 lemma filtered_mono {F : Finset (FunctionalDependency α)} {X Y : Finset α} (h : X ⊆ Y) :
   left_filter F X ⊆ left_filter F Y := by
   intro fd hfd
   simp [left_filter, Finset.mem_filter] at hfd ⊢
-  exact ⟨hfd.1, fun a ha => h (hfd.2 ha)⟩
+  constructor
+  · exact hfd.1
+  · exact subset_trans hfd.2 h
 
 /-- When left-filter reaches the fixed point, the single step also does. -/
 lemma fixed_of_filtered_eq {F : Finset (FunctionalDependency α)} {X : Finset α}
@@ -205,7 +202,8 @@ lemma fixed_of_filtered_eq {F : Finset (FunctionalDependency α)} {X : Finset α
 lemma seq_mono_step {F : Finset (FunctionalDependency α)} {X : Finset α} {n : ℕ} :
   ac_seq F X n ⊆ ac_seq F X (n + 1) := by
     simp [ac_seq_succ]
-    exact subset_step F (ac_seq F X n)
+    set XN := ac_seq F X n
+    exact attr_closure_subset_step
 
 /-- The left-filter with respect to the clusure set is monotone with respect to the number of iterations. -/
 lemma seq_filtered_mono {F : Finset (FunctionalDependency α)} {X : Finset α} {n : ℕ} :
