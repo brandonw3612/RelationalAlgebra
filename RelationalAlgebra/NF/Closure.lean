@@ -20,6 +20,9 @@ variable {α μ : Type} [DecidableEq α]
 def implies (F : Finset (FunctionalDependency α)) (f : FunctionalDependency α) : Prop :=
   ∀ {μ : Type} (r : RelationInstance α μ), r.satisfies F → f.holds r
 
+def implies_wrt_relation (F : Finset (FunctionalDependency α)) (f : FunctionalDependency α) (r : RelationInstance α μ) : Prop :=
+  r.satisfies F → f.holds r
+
 /-- Notation for implication of functional dependencies. -/
 infix:50 " ⊨ " => implies
 
@@ -480,32 +483,141 @@ theorem attr_closure_strong_correct {F : Finset (FunctionalDependency α)} {X : 
   simp [attr_closure, attr_closure_impl_correct]
 
 /-- Syntactic superkey: a set of attributes K is a superkey with respect to a set of functional dependencies F if F implies K -> r.schema. -/
-def isStructSuperkey (F : Finset (FunctionalDependency α)) (r : RelationInstance α μ) (K : Finset α) : Prop :=
+def is_struct_superkey (K : Finset α) (r : RelationInstance α μ) (F : Finset (FunctionalDependency α)) : Prop :=
   F ⊨ (K -> r.schema)
+
+/-- Syntactic superkey (weak). The implication is only required on r.schema. -/
+def is_weak_struct_superkey (K : Finset α) (r : RelationInstance α μ) (F : Finset (FunctionalDependency α)) : Prop :=
+  implies_wrt_relation F (K -> r.schema) r
 
 /--
   Application 1: Testing superkeys
-  ∀ K ⊆ R.schema, K is a (syntactic) superkey **iff** K⁺ = R.schema.
+  K is a (syntactic) superkey **iff** R.schema ⊆ K⁺.
 -/
-theorem superKeyViaAttrClosure {r : RelationInstance α μ} {F : Finset (FunctionalDependency α)} {K : Finset α} :
-  K ⊆ r.schema → isStructSuperkey F r K ↔ attr_closure F K = r.schema := by
-  sorry
+theorem schema_subset_struct_superkey_closure {r : RelationInstance α μ} {F : Finset (FunctionalDependency α)} {K : Finset α} :
+  is_struct_superkey K r F ↔ r.schema ⊆ attr_closure F K := by
+  rw [is_struct_superkey]
+  constructor
+  · intro h_sk
+    apply armstrong_complete at h_sk
+    apply attr_closure_complete at h_sk
+    exact h_sk
+  · intro h_closure
+    apply armstrong_sound
+    apply Derives.transitivity K (attr_closure F K) r.schema
+    apply attr_closure_sound
+    apply Derives.reflexivity (attr_closure F K) r.schema h_closure
 
 /--
-  Application 1.1: A syntactic superkey implies a semantic superkey.
+  With well-formedness assumptions, we have that
+  the single closure iteration on attribute set X with respect to F is still a subset of the relation schema.
+ -/
+lemma attr_closure_step_subset_schema {F : Finset (FunctionalDependency α)} {X : Finset α} {r : RelationInstance α μ}
+  (h_x_wellformed: X ⊆ r.schema)
+  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ r.schema ∧ fd.rhs ⊆ r.schema) :
+  attr_closure_impl_step F X ⊆ r.schema := by
+  simp [attr_closure_impl_step, left_filter]
+  apply Finset.union_subset
+  · exact h_x_wellformed
+  · rw [Finset.subset_iff]
+    intro x hx
+    rw [Finset.mem_sup] at hx
+    rcases hx with ⟨fd, h_fd_filter, h_x_fd⟩
+    have h_fd_in_F := Finset.filter_subset _ _ h_fd_filter
+    have h_fd_wellformed := h_f_wellformed fd h_fd_in_F
+    exact h_fd_wellformed.2 h_x_fd
+
+/--
+  With well-formedness assumptions, we have that
+  the closure of attribute set X with respect to F is still a subset of the relation schema.
+ -/
+lemma attr_closure_subset_schema {F : Finset (FunctionalDependency α)} {X : Finset α} {r : RelationInstance α μ}
+  (h_x_wellformed: X ⊆ r.schema)
+  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ r.schema ∧ fd.rhs ⊆ r.schema) :
+  attr_closure F X ⊆ r.schema := by
+  rw [attr_closure, attr_closure_impl]
+  induction F.card with
+  | zero =>
+    simp [ac_seq, Function.iterate_zero, id]
+    exact h_x_wellformed
+  | succ n ih =>
+    simp [ac_seq_succ]
+    apply attr_closure_step_subset_schema
+    · exact ih
+    · exact h_f_wellformed
+
+/--
+  Application 1: Testing superkeys with well-formedness assumptions.
+  When all FDs in F and K are well-formed with respect to R.schema, K is a (syntactic) superkey **iff** K⁺ = R.schema.
 -/
-theorem structSuperkeyImpliesSemanticSuperkey {r : RelationInstance α μ} {F : Finset (FunctionalDependency α)} {K : Finset α} :
-  r.satisfies F → isStructSuperkey F r K → isSuperkey r K := by
-  sorry
+theorem schema_eq_struct_superkey_closure {r : RelationInstance α μ} {F : Finset (FunctionalDependency α)} {K : Finset α}
+  (h_k_wellformed: K ⊆ r.schema)
+  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ r.schema ∧ fd.rhs ⊆ r.schema) :
+  is_struct_superkey K r F ↔ attr_closure F K = r.schema := by
+  constructor
+  · intro h_sk
+    apply armstrong_complete at h_sk
+    apply attr_closure_complete at h_sk
+    have h_subset := attr_closure_subset_schema h_k_wellformed h_f_wellformed
+    have h_other_subset := h_sk
+    exact Finset.Subset.antisymm h_subset h_other_subset
+  · intro h_closure
+    rw [is_struct_superkey]
+    apply armstrong_sound
+    rw [← h_closure]
+    apply attr_closure_sound
+
+/--
+  Application 1.1: A (weaker) syntactic superkey is equivalent to a semantic superkey.
+-/
+theorem weak_struct_superkey_eq_semantic_superkey {α : Type}
+  {r : RelationInstance α μ} {F : Finset (FunctionalDependency α)} {K : Finset α}
+  (h_x_wellformed: K ⊆ r.schema) (h_sat: r.satisfies F) :
+  is_weak_struct_superkey K r F ↔ is_superkey r K := by
+  rw [is_weak_struct_superkey, is_superkey]
+  constructor
+  · intro h_struct_sk
+    constructor
+    · exact h_x_wellformed
+    · rw [implies_wrt_relation] at h_struct_sk
+      exact h_struct_sk h_sat
+  · intro ⟨_, h_sem_sk⟩
+    have h_k_schema_on_r: (K -> r.schema : FunctionalDependency α).holds r := h_sem_sk
+    rw [implies_wrt_relation]
+    intro _
+    exact h_k_schema_on_r
+
+/--
+  Application 1.2: A (stronger) syntactic superkey implies a semantic superkey.
+-/
+theorem struct_superkey_implies_semantic_superkey {α : Type}
+  {r : RelationInstance α μ} {F : Finset (FunctionalDependency α)} {K : Finset α}
+  (h_x_wellformed: K ⊆ r.schema) (h_sat: r.satisfies F) :
+  is_struct_superkey K r F → is_superkey r K := by
+  rw [is_struct_superkey, implies, is_superkey]
+  intro h_struct_sk
+  specialize h_struct_sk r
+  constructor
+  · exact h_x_wellformed
+  · exact h_struct_sk h_sat
 
 /--
   Application 2: Testing FDs
-  ∀ S,T ⊆ R.schema, S -> T ∈ F⁺ **iff** T ⊆ S⁺.
-  We simplify the left-hand side using f ∈ F⁺ ↔ F ⊨ f.
+  S -> T ∈ F⁺ **iff** T ⊆ S⁺.
 -/
-theorem funcDepValidityViaAttrClosure {r : RelationInstance α μ} {F : Finset (FunctionalDependency α)} {S T : Finset α} :
-  S ⊆ r.schema → T ⊆ r.schema → F ⊨ (S -> T) ↔ T ⊆ attr_closure_impl F S := by
-  sorry
+theorem func_dep_valid_via_attr_closure {F : Finset (FunctionalDependency α)} {fd : FunctionalDependency α} :
+  fd ∈ func_dep_closure F ↔ fd.rhs ⊆ attr_closure F fd.lhs := by
+  simp [attr_closure, func_dep_closure]
+  set lc := attr_closure_impl F fd.lhs
+  constructor
+  · intro h_imp
+    apply armstrong_complete at h_imp
+    apply attr_closure_complete at h_imp
+    exact h_imp
+  · intro h_t_subset_closure
+    apply armstrong_sound
+    apply Derives.transitivity fd.lhs lc fd.rhs attr_closure_sound
+    apply Derives.reflexivity lc fd.rhs h_t_subset_closure
 
 end NF
 

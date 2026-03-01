@@ -5,9 +5,9 @@ import Mathlib.Data.Finset.Basic
 
 namespace RM
 
-namespace NF
-
 variable {α μ : Type} [DecidableEq α]
+
+namespace NF
 
 /-- Functional dependency over attributes `α`. -/
 structure FunctionalDependency (α : Type) where
