@@ -114,8 +114,7 @@ def left_filter (F : Finset (FunctionalDependency α)) (X : Finset α) : Finset 
   If α -> β is in F and α ⊆ X, then we can add β to X.
 -/
 def attr_closure_impl_step (F : Finset (FunctionalDependency α)) (X : Finset α) : Finset α :=
-  have f_filtered := left_filter F X
-  X ∪ f_filtered.sup (λ fd => fd.rhs)
+  X ∪ (left_filter F X).sup (λ fd => fd.rhs)
 
 /-- Auxiliary definition for iterating the closure step. -/
 def ac_seq (F : Finset (FunctionalDependency α)) (X : Finset α) (n : ℕ) : Finset α :=
@@ -157,7 +156,7 @@ lemma attr_closure_step_sound {F : Finset (FunctionalDependency α)} {X : Finset
     simp
 
 /-- Soundness of the attribute closure implementation, induced by iterating the single step. -/
-lemma attr_closure_sound {F : Finset (FunctionalDependency α)} {X : Finset α} :
+theorem attr_closure_sound {F : Finset (FunctionalDependency α)} {X : Finset α} :
   F ⊢ (X -> attr_closure_impl F X) := by
   simp [attr_closure_impl]
   induction F.card with
@@ -374,7 +373,7 @@ lemma subset_of_closure_if_holds {U X Y S : Finset α}
   exact of_decide_eq_true h_val.symm
 
 /-- If F ⊢ X -> Y, then Y is a subset of the closure of X. -/
-lemma attr_closure_complete {F : Finset (FunctionalDependency α)} {X Y : Finset α} :
+theorem attr_closure_complete {F : Finset (FunctionalDependency α)} {X Y : Finset α} :
   F ⊢ (X -> Y) → Y ⊆ attr_closure_impl F X := by
   intro h_der
   set S := attr_closure_impl F X
@@ -441,9 +440,7 @@ theorem armstrong_complete {F : Finset (FunctionalDependency α)} {f : Functiona
   -- Because F ⊨ f, the counterexample relation must satisfy f.
   have h_f_holds : f.holds r :=  h_implies r h_sat
   -- Step 4: Prove X is a subset of its own closure S.
-  have h_X_sub_S : X ⊆ S := by
-    have h_ref : F ⊢ (X -> X) := Derives.reflexivity X X (subset_refl X)
-    exact attr_closure_complete h_ref
+  have h_X_sub_S : X ⊆ S := attr_closure_subset_impl
   -- Because f holds on the relation, and Y ⊆ S, it must be that Y ⊆ S.
   have h_Y_sub_S : Y ⊆ S := subset_of_closure_if_holds h_X_sub_S h_Y_sub_U h_f_holds
   -- Step 5: Derive f from the fact that its RHS is in the closure of its LHS.
