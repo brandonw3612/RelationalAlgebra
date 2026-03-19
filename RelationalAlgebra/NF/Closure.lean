@@ -18,10 +18,10 @@ variable {α μ : Type} [DecidableEq α]
 
 /-- A functional dependency `f` is implied by a set of functional dependencies `F` if every relation instance that satisfies all dependencies in `F` also satisfies `f`. -/
 def implies (F : Finset (FunctionalDependency α)) (f : FunctionalDependency α) : Prop :=
-  ∀ {μ : Type} (r : RelationInstance α μ), r.satisfies F → f.holds r
+  ∀ {μ : Type} {r : RelationInstance α μ}, r.satisfies F → f.holds r
 
-def implies_wrt_relation (F : Finset (FunctionalDependency α)) (f : FunctionalDependency α) (r : RelationInstance α μ) : Prop :=
-  r.satisfies F → f.holds r
+def implies_wrt_schema (F : Finset (FunctionalDependency α)) (f : FunctionalDependency α) (R : Finset α) : Prop :=
+  ∀ {μ : Type} {r : RelationInstance α μ}, r.schema = R → r.satisfies F → f.holds r
 
 /-- Notation for implication of functional dependencies. -/
 infix:50 " ⊨ " => implies
@@ -86,7 +86,7 @@ theorem armstrong_sound {F : Finset (FunctionalDependency α)} {f : FunctionalDe
         intro a h_a_in_x
         have h_a_in_xz : a ∈ X ∪ Z := by simp [h_a_in_x]
         exact h_eq_xz a h_a_in_xz
-      exact h_xy_holds t₁ t₂ h_t₁ h_t₂ h_eq_x s h_s_in_y
+      exact h_xy_holds h_t₁ h_t₂ h_eq_x s h_s_in_y
     | inr h_s_in_z =>
       have h_s_in_xz : s ∈ X ∪ Z := by simp [h_s_in_z]
       exact h_eq_xz s h_s_in_xz
@@ -94,8 +94,8 @@ theorem armstrong_sound {F : Finset (FunctionalDependency α)} {f : FunctionalDe
     intro t₁ t₂ h_t₁ h_t₂ h_eq_x s h_s_in_z
     have h_eq_y : ∀ a ∈ Y, t₁ a = t₂ a := by
       intro a h_a_in_y
-      exact h_xy_holds t₁ t₂ h_t₁ h_t₂ h_eq_x a h_a_in_y
-    exact h_yz_holds t₁ t₂ h_t₁ h_t₂ h_eq_y s h_s_in_z
+      exact h_xy_holds h_t₁ h_t₂ h_eq_x a h_a_in_y
+    exact h_yz_holds h_t₁ h_t₂ h_eq_y s h_s_in_z
 
 /-- F⁺: Closure of a FD set. -/
 def func_dep_closure (F : Finset (FunctionalDependency α)) : Set (FunctionalDependency α) :=
@@ -364,7 +364,7 @@ lemma subset_of_closure_if_holds {U X Y S : Finset α}
   have h_agree_on_x : ∀ a ∈ X, t₁ a = t₂ a := by
     intro a ha_in_x
     simp [t₁, t₂, t_all_true, t_closure, h_X_sub_S ha_in_x]
-  have h_agree_on_y : ∀ b ∈ Y, t₁ b = t₂ b := h_holds t₁ t₂ h_t₁ h_t₂ h_agree_on_x
+  have h_agree_on_y : ∀ b ∈ Y, t₁ b = t₂ b := h_holds h_t₁ h_t₂ h_agree_on_x
   intro y hy
   have h_y_in_u := h_Y_sub_U hy
   have h_eq := h_agree_on_y y hy
@@ -398,7 +398,7 @@ theorem attr_closure_complete {F : Finset (FunctionalDependency α)} {X Y : Fins
   have h_sat : (counterexample_relation U S).satisfies F :=
     counterexample_sat_F h_F_sub_U impl_closed
   have h_holds : (X -> Y : FunctionalDependency α).holds (counterexample_relation U S) :=
-    h_implies (counterexample_relation U S) h_sat
+    h_implies h_sat
   exact subset_of_closure_if_holds attr_closure_subset_impl h_Y_sub_U h_holds
 
 /-- Completeness of Armstrong's Axioms: if F ⊨ f, then F ⊢ f. -/
@@ -438,7 +438,7 @@ theorem armstrong_complete {F : Finset (FunctionalDependency α)} {f : Functiona
   set r := counterexample_relation U S
   have h_sat : r.satisfies F := counterexample_sat_F h_F_sub_U h_closed
   -- Because F ⊨ f, the counterexample relation must satisfy f.
-  have h_f_holds : f.holds r :=  h_implies r h_sat
+  have h_f_holds : f.holds r :=  h_implies h_sat
   -- Step 4: Prove X is a subset of its own closure S.
   have h_X_sub_S : X ⊆ S := attr_closure_subset_impl
   -- Because f holds on the relation, and Y ⊆ S, it must be that Y ⊆ S.
@@ -480,39 +480,51 @@ theorem attr_closure_strong_correct {F : Finset (FunctionalDependency α)} {X : 
   simp [attr_closure, attr_closure_impl_correct]
 
 /-- Syntactic superkey: a set of attributes K is a superkey with respect to a set of functional dependencies F if F implies K -> r.schema. -/
-def is_struct_superkey (K : Finset α) (r : RelationInstance α μ) (F : Finset (FunctionalDependency α)) : Prop :=
-  F ⊨ (K -> r.schema)
+def is_struct_superkey (K : Finset α) (R : Finset α) (F : Finset (FunctionalDependency α)) : Prop :=
+  F ⊨ (K -> R)
 
 /-- Syntactic superkey (weak). The implication is only required on r.schema. -/
-def is_weak_struct_superkey (K : Finset α) (r : RelationInstance α μ) (F : Finset (FunctionalDependency α)) : Prop :=
-  implies_wrt_relation F (K -> r.schema) r
+def is_weak_struct_superkey (K : Finset α) (R : Finset α) (F : Finset (FunctionalDependency α)) : Prop :=
+  implies_wrt_schema F (K -> R) R
+
+section
+
+omit [DecidableEq α]
+
+lemma strong_sk_implies_weak_sk {K : Finset α} {R : Finset α} {F : Finset (FunctionalDependency α)} :
+  is_struct_superkey K R F → is_weak_struct_superkey K R F := by
+  intro h_strong
+  rw [is_struct_superkey] at h_strong
+  rw [is_weak_struct_superkey, implies_wrt_schema]
+  intro μ r h_schema
+  exact h_strong
+
+end
 
 /--
   Application 1: Testing superkeys
   K is a (syntactic) superkey **iff** R.schema ⊆ K⁺.
 -/
-theorem schema_subset_struct_superkey_closure {r : RelationInstance α μ} {F : Finset (FunctionalDependency α)} {K : Finset α} :
-  is_struct_superkey K r F ↔ r.schema ⊆ attr_closure F K := by
+theorem schema_subset_struct_superkey_closure {R : Finset α} {F : Finset (FunctionalDependency α)} {K : Finset α} :
+  is_struct_superkey K R F ↔ R ⊆ attr_closure F K := by
   rw [is_struct_superkey]
   constructor
-  · intro h_sk
-    apply armstrong_complete at h_sk
-    apply attr_closure_complete at h_sk
-    exact h_sk
+  · rw [← armstrong_correct]
+    exact attr_closure_complete
   · intro h_closure
     apply armstrong_sound
-    apply Derives.transitivity K (attr_closure F K) r.schema
+    apply Derives.transitivity K (attr_closure F K) R
     apply attr_closure_sound
-    apply Derives.reflexivity (attr_closure F K) r.schema h_closure
+    apply Derives.reflexivity (attr_closure F K) R h_closure
 
 /--
   With well-formedness assumptions, we have that
   the single closure iteration on attribute set X with respect to F is still a subset of the relation schema.
  -/
-lemma attr_closure_step_subset_schema {F : Finset (FunctionalDependency α)} {X : Finset α} {r : RelationInstance α μ}
-  (h_x_wellformed: X ⊆ r.schema)
-  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ r.schema ∧ fd.rhs ⊆ r.schema) :
-  attr_closure_impl_step F X ⊆ r.schema := by
+lemma attr_closure_step_subset_schema {F : Finset (FunctionalDependency α)} {X : Finset α} {R : Finset α}
+  (h_x_wellformed: X ⊆ R)
+  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ R ∧ fd.rhs ⊆ R) :
+  attr_closure_impl_step F X ⊆ R := by
   simp [attr_closure_impl_step, left_filter]
   apply Finset.union_subset
   · exact h_x_wellformed
@@ -528,10 +540,10 @@ lemma attr_closure_step_subset_schema {F : Finset (FunctionalDependency α)} {X 
   With well-formedness assumptions, we have that
   the closure of attribute set X with respect to F is still a subset of the relation schema.
  -/
-lemma attr_closure_subset_schema {F : Finset (FunctionalDependency α)} {X : Finset α} {r : RelationInstance α μ}
-  (h_x_wellformed: X ⊆ r.schema)
-  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ r.schema ∧ fd.rhs ⊆ r.schema) :
-  attr_closure F X ⊆ r.schema := by
+lemma attr_closure_subset_schema {F : Finset (FunctionalDependency α)} {X : Finset α} {R : Finset α}
+  (h_x_wellformed: X ⊆ R)
+  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ R ∧ fd.rhs ⊆ R) :
+  attr_closure F X ⊆ R := by
   rw [attr_closure, attr_closure_impl]
   induction F.card with
   | zero =>
@@ -547,10 +559,10 @@ lemma attr_closure_subset_schema {F : Finset (FunctionalDependency α)} {X : Fin
   Application 1: Testing superkeys with well-formedness assumptions.
   When all FDs in F and K are well-formed with respect to R.schema, K is a (syntactic) superkey **iff** K⁺ = R.schema.
 -/
-theorem schema_eq_struct_superkey_closure {r : RelationInstance α μ} {F : Finset (FunctionalDependency α)} {K : Finset α}
-  (h_k_wellformed: K ⊆ r.schema)
-  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ r.schema ∧ fd.rhs ⊆ r.schema) :
-  is_struct_superkey K r F ↔ attr_closure F K = r.schema := by
+theorem schema_eq_struct_superkey_closure {R : Finset α} {F : Finset (FunctionalDependency α)} {K : Finset α}
+  (h_k_wellformed: K ⊆ R)
+  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ R ∧ fd.rhs ⊆ R) :
+  is_struct_superkey K R F ↔ attr_closure F K = R := by
   constructor
   · intro h_sk
     apply armstrong_complete at h_sk
@@ -564,39 +576,40 @@ theorem schema_eq_struct_superkey_closure {r : RelationInstance α μ} {F : Fins
     rw [← h_closure]
     apply attr_closure_sound
 
+
+section
+
+omit [DecidableEq α]
+
 /--
-  Application 1.1: A (weaker) syntactic superkey is equivalent to a semantic superkey.
+  Application 1.1: A syntactic superkey is equivalent to a semantic superkey.
 -/
-theorem weak_struct_superkey_eq_semantic_superkey {α : Type}
-  {r : RelationInstance α μ} {F : Finset (FunctionalDependency α)} {K : Finset α}
-  (h_x_wellformed: K ⊆ r.schema) (h_sat: r.satisfies F) :
-  is_weak_struct_superkey K r F ↔ is_superkey r K := by
-  rw [is_weak_struct_superkey, is_superkey]
+theorem weak_struct_superkey_eq_semantic_superkey
+  {K : Finset α} {R : Finset α} {F : Finset (FunctionalDependency α)}
+  (h_sat: schema_satisfies R F) :
+  is_weak_struct_superkey K R F ↔ is_superkey K R := by
+  rw [is_weak_struct_superkey, implies_wrt_schema, is_superkey]
+  rw [schema_satisfies] at h_sat
   constructor
-  · intro h_struct_sk
-    constructor
-    · exact h_x_wellformed
-    · rw [implies_wrt_relation] at h_struct_sk
-      exact h_struct_sk h_sat
-  · intro ⟨_, h_sem_sk⟩
-    have h_k_schema_on_r: (K -> r.schema : FunctionalDependency α).holds r := h_sem_sk
-    rw [implies_wrt_relation]
-    intro _
-    exact h_k_schema_on_r
+  · intro h_wsk μ r t₁ t₂ h_schema
+    have h_holds : (K -> R : FunctionalDependency α).holds r := h_wsk h_schema (h_sat h_schema)
+    exact h_holds
+  · intro h_sk μ r h_schema h_sat_r
+    exact h_sk h_schema
+
+end
 
 /--
   Application 1.2: A (stronger) syntactic superkey implies a semantic superkey.
 -/
 theorem struct_superkey_implies_semantic_superkey {α : Type}
-  {r : RelationInstance α μ} {F : Finset (FunctionalDependency α)} {K : Finset α}
-  (h_x_wellformed: K ⊆ r.schema) (h_sat: r.satisfies F) :
-  is_struct_superkey K r F → is_superkey r K := by
-  rw [is_struct_superkey, implies, is_superkey]
-  intro h_struct_sk
-  specialize h_struct_sk r
-  constructor
-  · exact h_x_wellformed
-  · exact h_struct_sk h_sat
+  {R : Finset α} {F : Finset (FunctionalDependency α)} {K : Finset α}
+  (h_sat: schema_satisfies R F) :
+  is_struct_superkey K R F → is_superkey K R := by
+  intro h_sk
+  apply strong_sk_implies_weak_sk at h_sk
+  rw [← weak_struct_superkey_eq_semantic_superkey h_sat]
+  exact h_sk
 
 /--
   Application 2: Testing FDs
@@ -606,13 +619,10 @@ theorem func_dep_valid_via_attr_closure {F : Finset (FunctionalDependency α)} {
   fd ∈ func_dep_closure F ↔ fd.rhs ⊆ attr_closure F fd.lhs := by
   simp [attr_closure, func_dep_closure]
   set lc := attr_closure_impl F fd.lhs
+  rw [← armstrong_correct]
   constructor
-  · intro h_imp
-    apply armstrong_complete at h_imp
-    apply attr_closure_complete at h_imp
-    exact h_imp
+  · exact attr_closure_complete
   · intro h_t_subset_closure
-    apply armstrong_sound
     apply Derives.transitivity fd.lhs lc fd.rhs attr_closure_sound
     apply Derives.reflexivity lc fd.rhs h_t_subset_closure
 
