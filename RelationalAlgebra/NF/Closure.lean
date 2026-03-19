@@ -29,13 +29,13 @@ infix:50 " ⊨ " => implies
 /-- Armstrong's axioms for functional dependencies. -/
 inductive Derives (F : Finset (FunctionalDependency α)) : FunctionalDependency α → Prop where
   /-- a₀: If a functional dependency is in the set, then it can be derived. -/
-  | member : ∀ f ∈ F, Derives F f
+  | member : ∀ {f}, f ∈ F → Derives F f
   /-- a₁ (Reflexivity): if Y is a subset of X, then X -> Y. -/
-  | reflexivity : ∀ (X Y : Finset α), Y ⊆ X → Derives F (X -> Y)
+  | reflexivity : ∀ {X Y : Finset α}, Y ⊆ X → Derives F (X -> Y)
   /-- a₂ (Augmentation): if X -> Y, then XZ -> YZ for any Z. -/
-  | augmentation : ∀ (X Y Z : Finset α), Derives F (X -> Y) → Derives F (X ∪ Z -> Y ∪ Z)
+  | augmentation : ∀ {X Y Z : Finset α}, Derives F (X -> Y) → Derives F (X ∪ Z -> Y ∪ Z)
   /-- a₃ (Transitivity): if X -> Y and Y -> Z, then X -> Z. -/
-  | transitivity : ∀ (X Y Z : Finset α), Derives F (X -> Y) → Derives F (Y -> Z) → Derives F (X -> Z)
+  | transitivity : ∀ {X Y Z : Finset α}, Derives F (X -> Y) → Derives F (Y -> Z) → Derives F (X -> Z)
 
 /-- Notation for derivation of functional dependencies. -/
 infix:50 " ⊢ " => Derives
@@ -44,58 +44,59 @@ infix:50 " ⊢ " => Derives
 theorem derives_union {F : Finset (FunctionalDependency α)} {X Y Z : Finset α} :
   F ⊢ (X -> Y) → F ⊢ (X -> Z) → F ⊢ (X -> Y ∪ Z) := by
   intro h_der_x_y h_der_x_z
-  have h_der_x_xx_xy : F ⊢ (X -> Y ∪ X) := by simpa using Derives.augmentation X Y X h_der_x_y
+  have h_der_x_xx_xy : F ⊢ (X ∪ X -> Y ∪ X) := Derives.augmentation h_der_x_y
+  rw [Finset.union_idempotent X] at h_der_x_xx_xy
   have h_der_x_xy_yz : F ⊢ (Y ∪ X -> Y ∪ Z) := by
-    apply Derives.augmentation X Z Y at h_der_x_z
+    apply Derives.augmentation at h_der_x_z
     rw [Finset.union_comm X Y, Finset.union_comm Z Y] at h_der_x_z
     exact h_der_x_z
-  exact Derives.transitivity X (Y ∪ X) (Y ∪ Z) h_der_x_xx_xy h_der_x_xy_yz
+  exact Derives.transitivity h_der_x_xx_xy h_der_x_xy_yz
 
 /-- b₂ (Decomposition): if X -> YZ, then X -> Y and X -> Z. -/
 theorem derives_decomposition {F : Finset (FunctionalDependency α)} {X Y Z : Finset α} :
   F ⊢ (X -> Y ∪ Z) → F ⊢ (X -> Y) ∧ F ⊢ (X -> Z) := by
   intro h_der_x_yz
   constructor
-  · have h_der_yz_y : F ⊢ (Y ∪ Z -> Y) := by simpa using Derives.reflexivity (Y ∪ Z) Y
-    exact Derives.transitivity X (Y ∪ Z) Y h_der_x_yz h_der_yz_y
-  · have h_der_yz_z : F ⊢ (Y ∪ Z -> Z) := by simpa using Derives.reflexivity (Y ∪ Z) Z
-    exact Derives.transitivity X (Y ∪ Z) Z h_der_x_yz h_der_yz_z
+  · have h_der_yz_y : F ⊢ (Y ∪ Z -> Y) := Derives.reflexivity Finset.subset_union_left
+    exact Derives.transitivity h_der_x_yz h_der_yz_y
+  · have h_der_yz_z : F ⊢ (Y ∪ Z -> Z) := Derives.reflexivity Finset.subset_union_right
+    exact Derives.transitivity h_der_x_yz h_der_yz_z
 
 /-- b₃ (Pseudotransitivity): if X -> Y and YZ -> W, then XZ -> W. -/
 theorem derives_pseudotransitivity {F : Finset (FunctionalDependency α)} {X Y Z W : Finset α} :
   F ⊢ (X -> Y) → F ⊢ (Y ∪ Z -> W) → F ⊢ (X ∪ Z -> W) := by
   intro h_der_x_y h_der_yz_w
-  have h_der_xz_yz : F ⊢ (X ∪ Z -> Y ∪ Z) := by simpa using Derives.augmentation X Y Z h_der_x_y
-  exact Derives.transitivity (X ∪ Z) (Y ∪ Z) W h_der_xz_yz h_der_yz_w
+  have h_der_xz_yz : F ⊢ (X ∪ Z -> Y ∪ Z) := by simpa using Derives.augmentation h_der_x_y
+  exact Derives.transitivity h_der_xz_yz h_der_yz_w
 
 /-- Soundness of Armstrong's Axioms: if F ⊢ f, then F ⊨ f. -/
 theorem armstrong_sound {F : Finset (FunctionalDependency α)} {f : FunctionalDependency α} :
   F ⊢ f → F ⊨ f := by
   intro h_der μ r h_sat
   induction h_der with
-  | member f h_in => exact h_sat f h_in
-  | reflexivity X Y h_y_subset_x =>
+  | member h_in => exact h_sat h_in
+  | reflexivity h_y_subset_x =>
     intro t₁ t₂ h_t₁ h_t₂ h_eq_x s h_s_in_y
-    have h_s_in_x : s ∈ X := h_y_subset_x h_s_in_y
+    have h_s_in_x := h_y_subset_x h_s_in_y
     exact h_eq_x s h_s_in_x
-  | augmentation X Y Z h_der_xy h_xy_holds =>
-    intro t₁ t₂ h_t₁ h_t₂ h_eq_xz s h_s_in_yz
+  | augmentation h_der_xy h_xy_holds =>
+    intro _ _ h_t₁ h_t₂ h_eq_xz s h_s_in_yz
     cases Finset.mem_union.mp h_s_in_yz with
     | inl h_s_in_y =>
-      have h_eq_x : ∀ a ∈ X, t₁ a = t₂ a := by
-        intro a h_a_in_x
-        have h_a_in_xz : a ∈ X ∪ Z := by simp [h_a_in_x]
-        exact h_eq_xz a h_a_in_xz
-      exact h_xy_holds h_t₁ h_t₂ h_eq_x s h_s_in_y
+      apply h_xy_holds h_t₁ h_t₂
+      intro a h_a_in_x
+      apply h_eq_xz
+      simp [h_a_in_x]
+      exact h_s_in_y
     | inr h_s_in_z =>
-      have h_s_in_xz : s ∈ X ∪ Z := by simp [h_s_in_z]
-      exact h_eq_xz s h_s_in_xz
-  | transitivity X Y Z h_der_xy h_der_yz h_xy_holds h_yz_holds =>
+      apply h_eq_xz
+      simp [h_s_in_z]
+  | transitivity h_der_xy h_der_yz h_xy_holds h_yz_holds =>
     intro t₁ t₂ h_t₁ h_t₂ h_eq_x s h_s_in_z
-    have h_eq_y : ∀ a ∈ Y, t₁ a = t₂ a := by
-      intro a h_a_in_y
-      exact h_xy_holds h_t₁ h_t₂ h_eq_x a h_a_in_y
-    exact h_yz_holds h_t₁ h_t₂ h_eq_y s h_s_in_z
+    apply h_yz_holds h_t₁ h_t₂
+    intro a h_a_in_y
+    exact h_xy_holds h_t₁ h_t₂ h_eq_x a h_a_in_y
+    exact h_s_in_z
 
 /-- F⁺: Closure of a FD set. -/
 def func_dep_closure (F : Finset (FunctionalDependency α)) : Set (FunctionalDependency α) :=
@@ -136,23 +137,22 @@ lemma attr_closure_step_sound {F : Finset (FunctionalDependency α)} {X : Finset
   apply derives_union
   · apply Derives.reflexivity
     simp
-  · set s := left_filter F X
-    have h_s_subset_F : s ⊆ F := by simp [left_filter, s]
-    have h_s'_sup : ∀ s' ⊆ s, F ⊢ (X -> s'.sup (λ fd => fd.rhs)) := by
+  · set S := left_filter F X
+    have h_s_subset_F : S ⊆ F := by simp [left_filter, S]
+    have h_s'_sup : ∀ S' ⊆ S, F ⊢ (X -> S'.sup (λ fd => fd.rhs)) := by
       intro s' h_s'_sub_s
       induction s' using Finset.induction with
       | empty => simp [Derives.reflexivity]
-      | insert fd s'' h_fd_not_in_s'' h_ih =>
+      | insert fd S'' h_fd_not_in_s'' h_ih =>
         simp [Finset.sup_insert]
         obtain ⟨h_fd, h_s''⟩ := Finset.insert_subset_iff.mp h_s'_sub_s
         apply derives_union
-        · apply Derives.transitivity X fd.lhs fd.rhs
-          · apply Derives.reflexivity
-            simp [Finset.mem_filter.mp h_fd]
-          · apply Derives.member
-            exact Finset.mem_of_subset h_s_subset_F h_fd
+        · simp [S, left_filter] at h_fd
+          apply Derives.transitivity
+          · exact Derives.reflexivity h_fd.2
+          · exact Derives.member h_fd.1
         · exact h_ih h_s''
-    apply h_s'_sup s
+    apply h_s'_sup S
     simp
 
 /-- Soundness of the attribute closure implementation, induced by iterating the single step. -/
@@ -162,7 +162,7 @@ theorem attr_closure_sound {F : Finset (FunctionalDependency α)} {X : Finset α
   induction F.card with
   | zero => simp [ac_seq, Derives.reflexivity]
   | succ n ih =>
-    apply Derives.transitivity X (ac_seq F X n) (ac_seq F X (n + 1))
+    apply Derives.transitivity
     · exact ih
     · simp [ac_seq_succ,attr_closure_step_sound]
 
@@ -445,8 +445,8 @@ theorem armstrong_complete {F : Finset (FunctionalDependency α)} {f : Functiona
   have h_Y_sub_S : Y ⊆ S := subset_of_closure_if_holds h_X_sub_S h_Y_sub_U h_f_holds
   -- Step 5: Derive f from the fact that its RHS is in the closure of its LHS.
   have h_S_sound : F ⊢ (X -> S) := attr_closure_sound
-  have h_Y_ref : F ⊢ (S -> Y) := Derives.reflexivity S Y h_Y_sub_S
-  exact Derives.transitivity X S Y h_S_sound h_Y_ref
+  have h_Y_ref : F ⊢ (S -> Y) := Derives.reflexivity h_Y_sub_S
+  exact Derives.transitivity h_S_sound h_Y_ref
 
 /-- Armstrong's axioms are correct, given their soundness and completeness. -/
 theorem armstrong_correct {F : Finset (FunctionalDependency α)} {f : FunctionalDependency α} :
@@ -463,8 +463,8 @@ theorem attr_closure_impl_correct {F : Finset (FunctionalDependency α)} {X : Fi
   constructor
   · intro h_x_in_impl
     apply armstrong_sound
-    apply Derives.transitivity X (attr_closure_impl F X) {x} attr_closure_sound
-    apply Derives.reflexivity (attr_closure_impl F X) {x}
+    apply Derives.transitivity attr_closure_sound
+    apply Derives.reflexivity
     simp [h_x_in_impl]
   · intro h_x_in_attr_closure
     rw [← Finset.singleton_subset_iff]
@@ -513,9 +513,9 @@ theorem schema_subset_struct_superkey_closure {R : Finset α} {F : Finset (Funct
     exact attr_closure_complete
   · intro h_closure
     apply armstrong_sound
-    apply Derives.transitivity K (attr_closure F K) R
+    apply Derives.transitivity
     apply attr_closure_sound
-    apply Derives.reflexivity (attr_closure F K) R h_closure
+    apply Derives.reflexivity h_closure
 
 /--
   With well-formedness assumptions, we have that
@@ -592,8 +592,7 @@ theorem weak_struct_superkey_eq_semantic_superkey
   rw [schema_satisfies] at h_sat
   constructor
   · intro h_wsk μ r t₁ t₂ h_schema
-    have h_holds : (K -> R : FunctionalDependency α).holds r := h_wsk h_schema (h_sat h_schema)
-    exact h_holds
+    exact h_wsk h_schema (h_sat h_schema)
   · intro h_sk μ r h_schema h_sat_r
     exact h_sk h_schema
 
@@ -607,9 +606,8 @@ theorem struct_superkey_implies_semantic_superkey {α : Type}
   (h_sat: schema_satisfies R F) :
   is_struct_superkey K R F → is_superkey K R := by
   intro h_sk
-  apply strong_sk_implies_weak_sk at h_sk
   rw [← weak_struct_superkey_eq_semantic_superkey h_sat]
-  exact h_sk
+  exact strong_sk_implies_weak_sk h_sk
 
 /--
   Application 2: Testing FDs
@@ -623,8 +621,8 @@ theorem func_dep_valid_via_attr_closure {F : Finset (FunctionalDependency α)} {
   constructor
   · exact attr_closure_complete
   · intro h_t_subset_closure
-    apply Derives.transitivity fd.lhs lc fd.rhs attr_closure_sound
-    apply Derives.reflexivity lc fd.rhs h_t_subset_closure
+    apply Derives.transitivity attr_closure_sound
+    apply Derives.reflexivity h_t_subset_closure
 
 end NF
 

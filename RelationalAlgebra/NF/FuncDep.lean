@@ -35,7 +35,7 @@ end NF
 
 /-- A relation instance satisfies a set of functional dependencies if it satisfies each dependency in the set. -/
 def RelationInstance.satisfies (r : RelationInstance α μ) (F : Finset (NF.FunctionalDependency α)) : Prop :=
-  ∀ f ∈ F, f.holds r
+  ∀ {f}, f ∈ F → f.holds r
 
 def schema_satisfies (R : Finset α) (F : Finset (NF.FunctionalDependency α)) : Prop :=
   ∀ {μ : Type} {r : RelationInstance α μ}, r.schema = R → r.satisfies F
