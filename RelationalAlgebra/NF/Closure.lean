@@ -523,7 +523,7 @@ theorem schema_subset_struct_superkey_closure {R : Finset α} {F : Finset (Funct
  -/
 lemma attr_closure_step_subset_schema {F : Finset (FunctionalDependency α)} {X : Finset α} {R : Finset α}
   (h_x_wellformed: X ⊆ R)
-  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ R ∧ fd.rhs ⊆ R) :
+  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ R → fd.rhs ⊆ R) :
   attr_closure_impl_step F X ⊆ R := by
   simp [attr_closure_impl_step, left_filter]
   apply Finset.union_subset
@@ -532,9 +532,10 @@ lemma attr_closure_step_subset_schema {F : Finset (FunctionalDependency α)} {X 
     intro x hx
     rw [Finset.mem_sup] at hx
     rcases hx with ⟨fd, h_fd_filter, h_x_fd⟩
-    have h_fd_in_F := Finset.filter_subset _ _ h_fd_filter
-    have h_fd_wellformed := h_f_wellformed fd h_fd_in_F
-    exact h_fd_wellformed.2 h_x_fd
+    simp at h_fd_filter
+    apply Finset.mem_of_subset
+    · exact h_f_wellformed fd h_fd_filter.1 (Finset.Subset.trans h_fd_filter.2 h_x_wellformed)
+    · exact h_x_fd
 
 /--
   With well-formedness assumptions, we have that
@@ -542,7 +543,7 @@ lemma attr_closure_step_subset_schema {F : Finset (FunctionalDependency α)} {X 
  -/
 lemma attr_closure_subset_schema {F : Finset (FunctionalDependency α)} {X : Finset α} {R : Finset α}
   (h_x_wellformed: X ⊆ R)
-  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ R ∧ fd.rhs ⊆ R) :
+  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ R → fd.rhs ⊆ R) :
   attr_closure F X ⊆ R := by
   rw [attr_closure, attr_closure_impl]
   induction F.card with
@@ -561,15 +562,15 @@ lemma attr_closure_subset_schema {F : Finset (FunctionalDependency α)} {X : Fin
 -/
 theorem schema_eq_struct_superkey_closure {R : Finset α} {F : Finset (FunctionalDependency α)} {K : Finset α}
   (h_k_wellformed: K ⊆ R)
-  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ R ∧ fd.rhs ⊆ R) :
+  (h_f_wellformed: ∀ fd ∈ F, fd.lhs ⊆ R → fd.rhs ⊆ R) :
   is_struct_superkey K R F ↔ attr_closure F K = R := by
   constructor
   · intro h_sk
-    apply armstrong_complete at h_sk
-    apply attr_closure_complete at h_sk
-    have h_subset := attr_closure_subset_schema h_k_wellformed h_f_wellformed
-    have h_other_subset := h_sk
-    exact Finset.Subset.antisymm h_subset h_other_subset
+    apply Finset.Subset.antisymm
+    · exact attr_closure_subset_schema h_k_wellformed h_f_wellformed
+    · apply armstrong_complete at h_sk
+      apply attr_closure_complete at h_sk
+      exact h_sk
   · intro h_closure
     rw [is_struct_superkey]
     apply armstrong_sound
