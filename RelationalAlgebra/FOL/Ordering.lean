@@ -108,7 +108,7 @@ theorem RelationSchema.fromIndex_eq_get (i : ℕ) (h : i < (ordering rs).length)
 
 @[simp]
 theorem RelationSchema.fromIndex_mem (i : Fin rs.card) : fromIndex i ∈ rs := by
-  apply (RelationSchema.ordering_mem (Finset.sort (.≤.) rs)[i] rs).mp
+  apply (RelationSchema.ordering_mem (Finset.sort rs (.≤.))[i] rs).mp
   simp [RelationSchema.ordering]
 
 @[simp]

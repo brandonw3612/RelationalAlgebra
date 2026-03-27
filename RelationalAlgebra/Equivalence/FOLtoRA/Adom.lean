@@ -655,7 +655,7 @@ theorem adom.complete_def {dbi : DatabaseInstance ρ α μ} [Fintype (adomRs dbi
         obtain ⟨left_1, right_1⟩ := h_2
         obtain ⟨w_2, h_2⟩ := right_1
 
-        have : x ∈ as := by rw [← Finset.mem_coe, ← left, PFun.mem_dom]; use a_1
+        have : x ∈ as := by simp [← Finset.mem_coe, ← left, PFun.mem_dom]; use a_1
         obtain ⟨rn, hrn, ra, hra, t', ht', ht''⟩ := right x this
         use rn, ra, t'
         apply And.intro ht'

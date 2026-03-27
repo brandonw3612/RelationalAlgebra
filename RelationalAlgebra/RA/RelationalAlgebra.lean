@@ -93,7 +93,7 @@ theorem renameDom {f t} (inst : RelationInstance α μ) (f_sur : f.Surjective) (
     apply Iff.intro
     -- value in new tuple → α in new schema
     · intro ⟨w, w_ta⟩
-      simp [← Finset.mem_coe]
+      simp_rw [← Finset.mem_coe]
       rw [← inst.validSchema (t ∘ f)]
       . simp_all only [PFun.mem_dom, Function.comp_apply]
         have ⟨a', ha'⟩ := f_sur a
@@ -103,7 +103,7 @@ theorem renameDom {f t} (inst : RelationInstance α μ) (f_sur : f.Surjective) (
     -- α in new schema → value in new tuple
     · intro ⟨w, w_in_schema, fw_a⟩
       rw [← fw_a]
-      simp [← Finset.mem_coe] at w_in_schema
+      simp_rw [← Finset.mem_coe] at w_in_schema
       rw [← inst.validSchema (t ∘ f) h] at w_in_schema
       exact Part.dom_iff_mem.mp w_in_schema
 
@@ -374,7 +374,7 @@ theorem projectionT_cascade {s0 s1 s2 : Finset α} (ts : Set (α →. μ)) (h0 :
       obtain ⟨w, h⟩ := a
       obtain ⟨left, right⟩ := h
       simp_all only [not_false_eq_true, implies_true, and_true]
-      simp [← Finset.coe_subset] at h1
+      simp_rw [← Finset.coe_subset] at h1
       simp [h0 w left] at h1
       use PFun.restrict w h1
       apply And.intro

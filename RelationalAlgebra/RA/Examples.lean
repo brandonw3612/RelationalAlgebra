@@ -158,7 +158,6 @@ theorem hQueryUnion : exQueryUnion.isWellTyped exDatabase.schema := by
 
 example : ∃t, t ∈ (exQueryUnion.evaluate exDatabase hQueryUnion).tuples := by
   simp only [Query.evaluate, Query.evaluateT, unionT, exDatabase, exQueryUnion]
-  simp only [String.reduceEq, imp_self]
 
   use λ a => match a with
     | "employee_id" => "1"
@@ -182,6 +181,4 @@ theorem hQueryDifference : exQueryUnion.isWellTyped exDatabase.schema := by
 
 example : ¬∃t, t ∈ (exQueryDifference.evaluate exDatabase hQueryDifference).tuples := by
   simp only [Query.evaluate, Query.evaluateT, differenceT, exDatabase, exQueryDifference]
-  simp only [String.reduceEq, imp_self]
-
   simp

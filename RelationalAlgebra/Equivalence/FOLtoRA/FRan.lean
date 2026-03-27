@@ -110,22 +110,23 @@ theorem FreeMap.FRan_def (h : n ≤ brs.card) : FRan (FreeMap n brs) = ((Relatio
     have : w < brs.card := by grind
     simp [this]
 
-theorem List.take_sorted [LinearOrder α'] (l : List α') : List.Sorted (.≤.) l → List.Sorted (.≤.) (List.take n l) := by
+theorem List.take_sorted [LinearOrder α'] (l : List α') : List.SortedLE l → List.SortedLE (List.take n l) := by
   intro h
   induction l generalizing n
   . simp
-  . simp_all only [List.sorted_cons, forall_const]
+    exact h
+  . simp_all only [List.sortedLE_iff_pairwise]
     obtain ⟨left, right⟩ := h
     by_cases hc : n = 0
     . subst hc
       simp
     . rw [List.take_cons (Nat.zero_lt_of_ne_zero hc)]
-      simp_all only [List.sorted_cons]
-      apply And.intro
+      simp_all only [forall_const]
+      constructor
       · intro b a
         have := List.mem_of_mem_take a
         simp_all
-      · simp
+      · simp_all
 
 theorem List.take_nodup (l : List α') : List.Nodup l → List.Nodup (List.take n l) := by
   intro h
@@ -148,8 +149,8 @@ theorem FreeMap.FRan_ordering_def (h : n ≤ brs.card) : RelationSchema.ordering
   rw [FreeMap.FRan_def h]
   rw [RelationSchema.ordering]
   refine (List.toFinset_sort (fun x1 x2 ↦ x1 ≤ x2) ?_).mpr ?_
-  . exact List.take_nodup (Finset.sort (fun x1 x2 ↦ x1 ≤ x2) brs) (Finset.sort_nodup (fun x1 x2 ↦ x1 ≤ x2) brs)
-  . exact List.take_sorted (Finset.sort (fun x1 x2 ↦ x1 ≤ x2) brs) (Finset.sort_sorted (fun x1 x2 ↦ x1 ≤ x2) brs)
+  . exact List.take_nodup (brs.sort (fun x1 x2 ↦ x1 ≤ x2)) (brs.sort_nodup (fun x1 x2 ↦ x1 ≤ x2))
+  . exact (List.take_sorted (brs.sort (fun x1 x2 ↦ x1 ≤ x2)) (brs.sortedLT_sort.sortedLE)).pairwise
 
 theorem FreeMap.add_one_def {brs : Finset α} : FreeMap (n + 1) brs j.castSucc = FreeMap n brs j := by
   rfl

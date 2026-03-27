@@ -24,7 +24,7 @@ def BoundedQuery.castLE : ∀ {m n : ℕ} (_h : m ≤ n), BoundedQuery dbs m →
   | _m, _n, h, .R rn vMap => .R rn (Term.relabel (Sum.map id (Fin.castLE h)) ∘ vMap)
   | _m, _n, h, .tEq a b => .tEq (a.relabel (Sum.map id (Fin.castLE h))) (b.relabel (Sum.map id (Fin.castLE h)))
   | _m, _n, h, .and q₁ q₂ => (q₁.castLE h).and (q₂.castLE h)
-  | _m, _n, h, .ex q => (q.castLE (add_le_add_right h 1)).ex
+  | _m, _n, h, .ex q => (q.castLE (add_le_add_left h 1)).ex
   | _m, _n, h, .not q => (q.castLE h).not
 
 /- Helper theorems for `castLE` and `mapTermRel` -/
