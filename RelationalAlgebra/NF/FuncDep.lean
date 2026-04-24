@@ -37,9 +37,6 @@ end NF
 def RelationInstance.satisfies (r : RelationInstance α μ) (F : Finset (NF.FunctionalDependency α)) : Prop :=
   ∀ {f}, f ∈ F → f.holds r
 
-def schema_satisfies (R : Finset α) (F : Finset (NF.FunctionalDependency α)) : Prop :=
-  ∀ {μ : Type} {r : RelationInstance α μ}, r.schema = R → r.satisfies F
-
 end RM
 
 namespace Finset
