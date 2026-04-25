@@ -1,6 +1,7 @@
 import RelationalAlgebra.RelationalModel
 import RelationalAlgebra.RA.RelationalAlgebra
 import RelationalAlgebra.NF.FuncDep
+import RelationalAlgebra.NF.Decomposition
 import RelationalAlgebra.NF.Closure
 import RelationalAlgebra.NF.Superkey
 
@@ -144,6 +145,103 @@ termination_by R.card
 decreasing_by
   · exact R1_card_lt_R h_violator
   · exact R2_card_lt_R h_violator
+
+lemma bcnf_step_cover {X R : Finset α} {F : Finset (FunctionalDependency α)}
+  (h_violator : is_violator X R F) :
+  attr_closure_proj F X R ∪ ((R \ attr_closure_proj F X R) ∪ X) = R := by
+  rw [Finset.union_comm, Finset.union_assoc]
+  nth_rw 2 [Finset.union_comm]
+  rw [← Finset.union_assoc, Finset.sdiff_union_self_eq_union, Finset.union_comm]
+  have h_R_ac_eq_R : R ∪ attr_closure_proj F X R = R := by
+    rw [Finset.union_eq_left]
+    exact attr_closure_proj_subset
+  rcases h_violator with ⟨h_X, _⟩
+  rw [h_R_ac_eq_R, Finset.union_eq_right]
+  trivial
+
+lemma bcnf_step_intersection {X R : Finset α} {F : Finset (FunctionalDependency α)}
+  (h_violator : is_violator X R F) :
+  attr_closure_proj F X R ∩ (X ∪ (R \ attr_closure_proj F X R)) = X := by
+  rcases h_violator with ⟨h_X, _, _⟩
+  rw [Finset.inter_union_distrib_left]
+  have h_acX_eq_X : attr_closure_proj F X R ∩ X = X := by
+    rw [Finset.inter_eq_right]
+    exact subset_attr_closure_proj h_X
+  rw [h_acX_eq_X, Finset.inter_sdiff_self]
+  apply Finset.union_empty
+
+lemma restrict_apply_mem {α : Type} (f : α →. μ) {S : Set α} {h_ST : S ⊆ f.Dom} {a : α} (h_a : a ∈ S) :
+  f.restrict h_ST a = f a := by
+  ext
+  simp [PFun.mem_restrict, h_a]
+
+lemma restrict_apply_non_mem {α : Type} (f : α →. μ) {S : Set α} {h_ST : S ⊆ f.Dom} {a : α} (h_a : a ∉ S) :
+  f.restrict h_ST a = Part.none := by
+  ext
+  simp [PFun.mem_restrict, h_a]
+
+lemma restrict_apply_correct {α : Type} (f : α →. μ) {S : Set α} (h_ST : S ⊆ f.Dom) :
+  ∀ a : α, (a ∈ S → f.restrict h_ST a = f a) ∧ (a ∉ S → f.restrict h_ST a = Part.none) := by
+  intro a
+  constructor
+  · intro h_a
+    exact restrict_apply_mem f h_a
+  · intro h_a
+    exact restrict_apply_non_mem f h_a
+
+lemma restrict_dom {α μ : Type} (t : α →. μ) {S : Set α} (h_sub : S ⊆ t.Dom) :
+    (t.restrict h_sub).Dom = S := by
+    unfold PFun.restrict Part.restrict
+    simp
+
+theorem bcnf_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependency α)} {μ : Type}
+  (h_violator : is_violator X R F) :
+  let d : Decomposition R := {
+    left := attr_closure_proj F X R,
+    right := (R \ attr_closure_proj F X R) ∪ X,
+    cover := bcnf_step_cover h_violator
+  };
+  d.is_lossless F := by
+  simp [Decomposition.is_lossless]
+  intro μ r h_r h_sat
+  apply RelationInstance.ext
+  · simp [join, projection]
+    rw [bcnf_step_cover h_violator, h_r]
+  · apply Set.Subset.antisymm
+    · rw [Set.subset_def]
+      intro t h_t
+      have h_R1_sub_R : ↑(attr_closure_proj F X R) ⊆ t.Dom := by
+        rw [r.validSchema t h_t, Finset.coe_subset, h_r]
+        exact attr_closure_proj_subset
+      use t.restrict h_R1_sub_R
+      constructor
+      · use t
+        constructor
+        · trivial
+        · exact restrict_apply_correct t h_R1_sub_R
+      · have h_R2_sub_R : ↑((R \ attr_closure_proj F X R) ∪ X) ⊆ t.Dom := by
+          rw [r.validSchema t h_t, Finset.coe_subset, h_r]
+          exact Finset.union_subset Finset.sdiff_subset h_violator.1
+        use t.restrict h_R2_sub_R
+        constructor
+        · use t
+          constructor
+          · trivial
+          · exact restrict_apply_correct t h_R2_sub_R
+        · intro a
+          constructor
+          · intro h_a
+            symm
+            exact restrict_apply_mem t h_a
+          · constructor
+            · intro h_a
+              symm
+              exact restrict_apply_mem t h_a
+            · intro h_a
+              rw [restrict_dom, restrict_dom, ← Finset.coe_union, bcnf_step_cover h_violator, ← h_r, ← r.validSchema t h_t] at h_a
+              rw [Part.eq_none_iff']
+              exact h_a
+    · sorry
 
 end NF
 
