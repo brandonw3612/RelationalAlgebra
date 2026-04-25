@@ -481,6 +481,19 @@ theorem attr_closure_strong_correct {F : Finset (FunctionalDependency α)} {X : 
 def attr_closure_proj (F : Finset (FunctionalDependency α)) (X R : Finset α) : Finset α :=
   attr_closure_impl F X ∩ R
 
+theorem subset_attr_closure_proj {F : Finset (FunctionalDependency α)} {X R : Finset α} :
+  X ⊆ R → X ⊆ attr_closure_proj F X R := by
+  rw [attr_closure_proj]
+  intro h_X
+  apply Finset.subset_inter
+  · exact attr_closure_subset_impl
+  · trivial
+
+theorem attr_closure_proj_subset {F : Finset (FunctionalDependency α)} {X R : Finset α} :
+  attr_closure_proj F X R ⊆ R := by
+  rw [attr_closure_proj]
+  apply Finset.inter_subset_right
+
 /--
   Application: Testing FDs
   S -> T ∈ F⁺ **iff** T ⊆ S⁺.

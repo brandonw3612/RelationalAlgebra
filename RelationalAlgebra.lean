@@ -4,3 +4,5 @@ import RelationalAlgebra.RA.EquivRules
 import RelationalAlgebra.RA.Examples
 import RelationalAlgebra.FOL.Examples
 import RelationalAlgebra.Equivalence.Equivalence
+
+import RelationalAlgebra.NF.Closure
