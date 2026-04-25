@@ -93,10 +93,9 @@ def SchemaTree.leaves : SchemaTree α → Finset (Finset α)
   | leaf R => {R}
   | node _ _ _ left right => left.leaves ∪ right.leaves
 
-lemma R1_card_lt_R {X R : Finset α} {F : Finset (FunctionalDependency α)}
+lemma R1_subset_R {X R : Finset α} {F : Finset (FunctionalDependency α)}
   (h_violator : is_violator X R F) :
-  (attr_closure_proj F X R).card < R.card := by
-  apply Finset.card_lt_card
+  attr_closure_proj F X R ⊂ R := by
   rw [Finset.ssubset_iff_subset_ne]
   constructor
   · exact attr_closure_proj_subset
@@ -104,10 +103,9 @@ lemma R1_card_lt_R {X R : Finset α} {F : Finset (FunctionalDependency α)}
     rcases h_violator with ⟨_, h_xp_ne_R, _⟩
     trivial
 
-lemma R2_card_lt_R {X R : Finset α} {F : Finset (FunctionalDependency α)}
+lemma R2_subset_R {X R : Finset α} {F : Finset (FunctionalDependency α)}
   (h_violator : is_violator X R F) :
-  ((R \ attr_closure_proj F X R) ∪ X).card < R.card := by
-  apply Finset.card_lt_card
+  (R \ attr_closure_proj F X R) ∪ X ⊂ R := by
   rw [is_violator] at h_violator
   rcases h_violator with ⟨h_X, _, h_xp_ne_X⟩
   rw [← Finset.sdiff_sdiff_eq_sdiff_union]
@@ -143,8 +141,8 @@ def BCNF_decompose
         else SchemaTree.leaf R
 termination_by R.card
 decreasing_by
-  · exact R1_card_lt_R h_violator
-  · exact R2_card_lt_R h_violator
+  · exact Finset.card_lt_card (R1_subset_R h_violator)
+  · exact Finset.card_lt_card (R2_subset_R h_violator)
 
 lemma bcnf_step_cover {X R : Finset α} {F : Finset (FunctionalDependency α)}
   (h_violator : is_violator X R F) :
@@ -194,7 +192,7 @@ lemma restrict_dom {α μ : Type} (t : α →. μ) {S : Set α} (h_sub : S ⊆ t
     unfold PFun.restrict Part.restrict
     simp
 
-theorem bcnf_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependency α)} {μ : Type}
+theorem bcnf_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependency α)}
   (h_violator : is_violator X R F) :
   let d : Decomposition R := {
     left := attr_closure_proj F X R,
@@ -202,10 +200,12 @@ theorem bcnf_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependenc
     cover := bcnf_step_cover h_violator
   };
   d.is_lossless F := by
+  have h_X_subset_R₁ : X ⊆ attr_closure_proj F X R := subset_attr_closure_proj h_violator.1
+  have h_X_subset_R₂ : X ⊆ (R \ attr_closure_proj F X R) ∪ X := Finset.subset_union_right
   simp [Decomposition.is_lossless]
   intro μ r h_r h_sat
   apply RelationInstance.ext
-  · simp [join, projection]
+  · simp only [join, projection]
     rw [bcnf_step_cover h_violator, h_r]
   · apply Set.Subset.antisymm
     · rw [Set.subset_def]
@@ -241,7 +241,80 @@ theorem bcnf_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependenc
               rw [restrict_dom, restrict_dom, ← Finset.coe_union, bcnf_step_cover h_violator, ← h_r, ← r.validSchema t h_t] at h_a
               rw [Part.eq_none_iff']
               exact h_a
-    · sorry
+    · rw [Set.subset_def]
+      intro t h_t
+      simp only[join, projection] at h_t
+      have h_X := h_violator.1
+      rcases h_t with ⟨t₁, h_t₁, t₂, h_t₂, h_agree⟩
+      have h_t₁_dom : t₁.Dom = attr_closure_proj F X R := by
+        apply projectionDom r h_t₁
+        rw [h_r]
+        exact (R1_subset_R h_violator).1
+      rcases h_t₁ with ⟨u, h_u, h_t₁_u⟩
+      have h_t₂_dom : t₂.Dom = (R \ attr_closure_proj F X R) ∪ X := by
+        apply projectionDom r h_t₂
+        rw [h_r]
+        exact (R2_subset_R h_violator).1
+      rcases h_t₂ with ⟨v, h_v, h_t₂_v⟩
+      rw [joinSingleT] at h_agree
+      have h_agree_X : ∀ a ∈ X, u a = v a := by
+        intro a h_a
+        have h_a_in_R₁ := Finset.mem_of_subset h_X_subset_R₁ h_a
+        have h_a_in_R₂ := Finset.mem_of_subset h_X_subset_R₂ h_a
+        have h_t_eq : t₁ a = t₂ a := by
+          rcases h_agree a with ⟨h_t₁_eq, h_t₂_eq, _⟩
+          have h_a_in_dom₁ : a ∈ t₁.Dom := by
+            rw [h_t₁_dom, Finset.mem_coe]
+            trivial
+          have h_t₁_eq := h_t₁_eq h_a_in_dom₁
+          have h_a_in_dom₂ : a ∈ t₂.Dom := by
+            rw [h_t₂_dom, Finset.mem_coe]
+            trivial
+          have h_t₂_eq := h_t₂_eq h_a_in_dom₂
+          rw [← h_t₁_eq, ← h_t₂_eq]
+        rcases h_t₁_u a with ⟨h_u_eq, _⟩
+        rcases h_t₂_v a with ⟨h_v_eq, _⟩
+        rw [← h_u_eq h_a_in_R₁, ← h_v_eq h_a_in_R₂]
+        trivial
+      have h_f₁_dev : F ⊢ (X -> attr_closure_proj F X R) := by
+        rw [attr_closure_proj]
+        exact Derives.transitivity attr_closure_sound (Derives.reflexivity Finset.inter_subset_left)
+      have h_f₁_imp : F ⊨ (X -> attr_closure_proj F X R) := armstrong_sound h_f₁_dev
+      have h_f₁_holds : (X -> attr_closure_proj F X R : FunctionalDependency α).holds r := h_f₁_imp h_sat
+      have h_agree_R₁ := h_f₁_holds h_u h_v h_agree_X
+      have h_t_eq_v : t = v := by
+        rw [PFun.ext_iff]
+        intro a
+        rw [← Part.ext_iff]
+        by_cases h_a : a ∉ R
+        · have h_a_not_in_doms : a ∉ t₁.Dom ∪ t₂.Dom := by
+            rw [h_t₁_dom, h_t₂_dom, ← Finset.coe_union, bcnf_step_cover h_violator, Finset.mem_coe]
+            trivial
+          have h_t_none := (h_agree a).2.2 h_a_not_in_doms
+          have h_a_not_in_v_dom : a ∉ v.Dom := by
+            rw [r.validSchema v h_v, h_r, Finset.mem_coe]
+            trivial
+          have h_v_none : v a = Part.none := Part.eq_none_iff'.mpr h_a_not_in_v_dom
+          rw [h_v_none, h_t_none]
+        · by_cases h_a' : a ∈ attr_closure_proj F X R
+          · have h_a_in_dom₁ : a ∈ t₁.Dom := by
+              rw [h_t₁_dom, Finset.mem_coe]
+              trivial
+            have h_t_eq_t₁ := (h_agree a).1 h_a_in_dom₁
+            have h_t₁_eq_u := (h_t₁_u a).1 h_a'
+            have h_u_eq_v := h_agree_R₁ a h_a'
+            rw [h_t_eq_t₁, h_t₁_eq_u, h_u_eq_v]
+          · simp at h_a
+            rw [← bcnf_step_cover h_violator, Finset.mem_union] at h_a
+            have h_a' := h_a.resolve_left h_a'
+            have h_a_in_dom₂ : a ∈ t₂.Dom := by
+              rw [h_t₂_dom, Finset.mem_coe]
+              trivial
+            have h_t_eq_t₂ := (h_agree a).2.1 h_a_in_dom₂
+            have h_t₂_eq_v := (h_t₂_v a).1 h_a'
+            rw [h_t_eq_t₂, h_t₂_eq_v]
+      rw [h_t_eq_v]
+      trivial
 
 end NF
 

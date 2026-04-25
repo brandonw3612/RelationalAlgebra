@@ -19,6 +19,7 @@ A `RelationInstance` is a combination of a 'relation schema' and a `Set` of 'tup
 Where each tuple respects the schema,
   meaning that the attribute `a : α` has a matching value `v : μ`, if and only if `a ∈ schema`
 -/
+@[ext]
 structure RelationInstance (α μ : Type) where
     schema : Finset α
     tuples : Set (α →. μ)
