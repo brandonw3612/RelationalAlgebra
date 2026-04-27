@@ -9,34 +9,96 @@ import Mathlib.Data.Finset.Lattice.Fold
 
 import Mathlib.Data.PFun
 
+import Architect
+
 namespace RM
 
 namespace NF
 
 variable {α μ : Type} [DecidableEq α]
 
-/-- A functional dependency `f` is implied by a set of functional dependencies `F` if every relation instance that satisfies all dependencies in `F` also satisfies `f`. -/
+/-- A functional dependency `f` is implied by a set of functional dependencies `F`,
+    if every relation instance that satisfies all dependencies in `F` also satisfies `f`.
+-/
+@[
+  blueprint "definition:fd-imp"
+  (title := /-- FD Implication -/)
+  (statement := /--
+    A functional dependency $f$ is implied by a set of functional dependencies $F$,
+    if every relation instance that satisfies all dependencies in $F$ also satisfies $f$,
+    denoted as $F \vDash f$.
+  -/)
+]
 def implies (F : Finset (FunctionalDependency α)) (f : FunctionalDependency α) : Prop :=
   ∀ {μ : Type} {r : RelationInstance α μ}, r.satisfies F → f.holds r
 
 /-- Notation for implication of functional dependencies. -/
 infix:50 " ⊨ " => implies
 
+@[
+  blueprint "definition:fd-imp-proj"
+  (title := /-- Projection of FD Implication -/)
+  (statement := /--
+    When projected onto a schema $R$, a functional dependency $f$ is implied by
+    a set of functional dependencies $F$, if $F \vDash f$ and both
+    the left-hand side and right-hand side of $f$ are subsets of $R$.
+  -/)
+]
+def implies_proj (F : Finset (FunctionalDependency α)) (R : Finset α) (f : FunctionalDependency α) : Prop :=
+  implies F f ∧ f.lhs ⊆ R ∧ f.rhs ⊆ R
+
 /-- Armstrong's axioms for functional dependencies. -/
+@[
+  blueprint "definition:der-armstrong"
+  (title := /-- Armstrong's Axioms -/)
+  (statement := /--
+    The derivation of functional dependencies are denoted as $F \vdash f$.
+    Armstrong's axioms for functional dependencies consist of the following inference rules:
+    \begin{itemize}
+      \item \textit{Membership}: If a functional dependency is in the set,
+            then it can be derived by nature.
+      \item \textit{Reflexivity}: if $Y \subseteq X$, then $F \vdash X \rightarrow Y$.
+      \item \textit{Augmentation}: if $F \vdash X \rightarrow Y$,
+            then $F \vdash XZ \rightarrow YZ$ for any $Z$.
+      \item \textit{Transitivity}: if $F \vdash X \rightarrow Y$ and $F \vdash Y \rightarrow Z$,
+            then $F \vdash X \rightarrow Z$.
+    \end{itemize}
+  -/)
+]
 inductive Derives (F : Finset (FunctionalDependency α)) : FunctionalDependency α → Prop where
-  /-- a₀: If a functional dependency is in the set, then it can be derived. -/
+  /-- Membership: If a functional dependency is in the set, then it can be derived. -/
   | member : ∀ {f}, f ∈ F → Derives F f
-  /-- a₁ (Reflexivity): if Y is a subset of X, then X -> Y. -/
+  /-- Reflexivity: if `Y` is a subset of `X`, then `F ⊢ X -> Y`. -/
   | reflexivity : ∀ {X Y : Finset α}, Y ⊆ X → Derives F (X -> Y)
-  /-- a₂ (Augmentation): if X -> Y, then XZ -> YZ for any Z. -/
+  /-- Augmentation: if `F ⊢ X -> Y`, then `F ⊢ XZ -> YZ` for any `Z`. -/
   | augmentation : ∀ {X Y Z : Finset α}, Derives F (X -> Y) → Derives F (X ∪ Z -> Y ∪ Z)
-  /-- a₃ (Transitivity): if X -> Y and Y -> Z, then X -> Z. -/
+  /-- Transitivity: if `F ⊢ X -> Y` and `F ⊢ Y -> Z`, then `F ⊢ X -> Z`. -/
   | transitivity : ∀ {X Y Z : Finset α}, Derives F (X -> Y) → Derives F (Y -> Z) → Derives F (X -> Z)
 
 /-- Notation for derivation of functional dependencies. -/
 infix:50 " ⊢ " => Derives
 
-/-- b₁ (Union): if X -> Y and X -> Z, then X -> YZ. -/
+/-- Armstrong' Axioms Additional Rule - Union:
+    if `F ⊢ X -> Y` and `F ⊢ X -> Z`, then `F ⊢ X -> YZ`.
+-/
+@[
+  blueprint "theorem:der-union"
+  (title := /-- Armstrong' Axioms Additional Rule: Union -/)
+  (statement := /--
+    If $F \vdash X \rightarrow Y$ and $F \vdash X \rightarrow Z$,
+    then $F \vdash X \rightarrow YZ$.
+  -/)
+  (proof := /--
+    \begin{enumerate}
+        \item Apply \textit{augmentation} rule to $F \vdash X \rightarrow Y$ with $X$
+              to get $F \vdash X \rightarrow XY$.
+        \item Apply \textit{augmentation} rule to $F \vdash X \rightarrow Z$ with $Y$
+              to get $F \vdash XY \rightarrow YZ$.
+        \item Apply \textit{transitivity} rule to the two derived dependencies
+              to get $F \vdash X \rightarrow YZ$.
+    \end{enumerate}
+  -/)
+]
 theorem derives_union {F : Finset (FunctionalDependency α)} {X Y Z : Finset α} :
   F ⊢ (X -> Y) → F ⊢ (X -> Z) → F ⊢ (X -> Y ∪ Z) := by
   intro h_der_x_y h_der_x_z
@@ -48,7 +110,23 @@ theorem derives_union {F : Finset (FunctionalDependency α)} {X Y Z : Finset α}
     exact h_der_x_z
   exact Derives.transitivity h_der_x_xx_xy h_der_x_xy_yz
 
-/-- b₂ (Decomposition): if X -> YZ, then X -> Y and X -> Z. -/
+/-- Armstrong' Axioms Additional Rule - Decomposition:
+    if `F ⊢ X -> YZ`, then `F ⊢ X -> Y` and `F ⊢ X -> Z`.
+-/
+@[
+  blueprint "theorem:der-decomposition"
+  (title := /-- Armstrong' Axioms Additional Rule: Decomposition -/)
+  (statement := /--
+    If $F \vdash X \rightarrow YZ$, then $F \vdash X \rightarrow Y$
+    and $F \vdash X \rightarrow Z$.
+  -/)
+  (proof := /--
+    Using the \textit{reflexivity} rule, we derive $F \vdash YZ \rightarrow Y$
+    and $F \vdash YZ \rightarrow Z$ since $Y$ and $Z$ are subsets of $YZ$.
+    Then, we apply the \textit{transitivity} rule to obtain $F \vdash X \rightarrow Y$
+    and $F \vdash X \rightarrow Z$ from $F \vdash X \rightarrow YZ$.
+  -/)
+]
 theorem derives_decomposition {F : Finset (FunctionalDependency α)} {X Y Z : Finset α} :
   F ⊢ (X -> Y ∪ Z) → F ⊢ (X -> Y) ∧ F ⊢ (X -> Z) := by
   intro h_der_x_yz
@@ -58,14 +136,70 @@ theorem derives_decomposition {F : Finset (FunctionalDependency α)} {X Y Z : Fi
   · have h_der_yz_z : F ⊢ (Y ∪ Z -> Z) := Derives.reflexivity Finset.subset_union_right
     exact Derives.transitivity h_der_x_yz h_der_yz_z
 
-/-- b₃ (Pseudotransitivity): if X -> Y and YZ -> W, then XZ -> W. -/
+/-- Armstrong' Axioms Additional Rule - Pseudotransitivity:
+    if `F ⊢ X -> Y` and `F ⊢ YZ -> W`, then `F ⊢ XZ -> W`.
+-/
+@[
+  blueprint "theorem:der-pseudotransitivity"
+  (title := /-- Armstrong' Axioms Additional Rule: Pseudotransitivity -/)
+  (statement := /--
+    If $F \vdash X \rightarrow Y$ and $F \vdash YZ \rightarrow W$,
+    then $F \vdash XZ \rightarrow W$.
+  -/)
+  (proof := /--
+    Apply the \textit{augmentation} rule to $F \vdash X \rightarrow Y$ with $Z$ to get
+    $F \vdash XZ \rightarrow YZ$. Then, apply the \textit{transitivity} rule to the derived
+    functional dependency and $F \vdash YZ \rightarrow W$ to get $F \vdash XZ \rightarrow W$.
+  -/)
+]
 theorem derives_pseudotransitivity {F : Finset (FunctionalDependency α)} {X Y Z W : Finset α} :
   F ⊢ (X -> Y) → F ⊢ (Y ∪ Z -> W) → F ⊢ (X ∪ Z -> W) := by
   intro h_der_x_y h_der_yz_w
   have h_der_xz_yz : F ⊢ (X ∪ Z -> Y ∪ Z) := by simpa using Derives.augmentation h_der_x_y
   exact Derives.transitivity h_der_xz_yz h_der_yz_w
 
-/-- Soundness of Armstrong's Axioms: if F ⊢ f, then F ⊨ f. -/
+/-- Soundness of Armstrong's Axioms: if `F ⊢ f`, then `F ⊨ f`. -/
+@[
+  blueprint "theorem:armstrong-soundness"
+  (title := /-- Soundness of Armstrong's Axioms -/)
+  (statement := /--
+    If a functional dependency $f$ can be derived from a set of functional dependencies $F$
+    using Armstrong's axioms, then $f$ is implied by $F$.
+  -/)
+  (proof := /--
+    By induction on the derivation of $f$ from $F$ using Armstrong's axioms,
+    we show case by case in this proof that if $F \vdash f$, then $F \vDash f$.
+    Specifically in each case, with the precondition that the functional dependency $f$ can be
+    derived from FD set $F$ ($F \vdash f$), we unfold the definition of implication
+    ($F \vDash f$) and show that for any relation instance $r$ that satisfies all dependencies
+    in $F$, $f$ also holds on $r$.
+    \begin{itemize}
+      \item \textit{Membership}:
+            As $f$ is in $F$, and $r$ satisfies all dependencies in $F$,
+            $f$ must hold on $r$.
+      \item \textit{Reflexivity}:
+            Since $Y$ is a subset of $X$, for any two tuples that agree on $X$,
+            they must also agree on $Y$. Thus, $f$ holds on $r$.
+      \item \textit{Augmentation}:
+            With precondition that $X \rightarrow Y$ holds on $r$, we split the membership of
+            attribute $s$ in the target set $YZ$ into two cases: $s$ is in $Y$ or $s$ is in $Z$.
+            \begin{itemize}
+              \item If $s$ is in $Y$, to show the agreement of tuples on $s$, we apply
+                    the precondition that $X \rightarrow Y$ holds on $r$. Now we need to show that
+                    the tuples agree on all attributes in $X$. Since in the precondition we have that
+                    the tuples agree on $XZ$, they must also agree on $X$ as $X$ is a subset of $XZ$.
+                    Thus, we conclude that the tuples agree on $s$.
+              \item If $s$ is in $Z$, we apply the precondition that the tuples agree on $XZ$ again
+                    to conclude that they also agree on $Z$, and thus they agree on $s$.
+            \end{itemize}
+      \item \textit{Transitivity}:
+            To show that the tuples agree on $Z$, we apply the precondition that
+            $Y \rightarrow Z$ holds on $r$. Now we need to show that the tuples agree on $Y$.
+            We apply the precondition that $X \rightarrow Y$ holds on $r$ to align the objective with
+            the precondition that the tuples agree on $X$.
+    \end{itemize}
+  -/)
+]
 theorem armstrong_sound {F : Finset (FunctionalDependency α)} {f : FunctionalDependency α} :
   F ⊢ f → F ⊨ f := by
   intro h_der μ r h_sat
@@ -80,56 +214,188 @@ theorem armstrong_sound {F : Finset (FunctionalDependency α)} {f : FunctionalDe
     cases Finset.mem_union.mp h_s_in_yz with
     | inl h_s_in_y =>
       apply h_xy_holds h_t₁ h_t₂
-      intro a h_a_in_x
-      apply h_eq_xz
-      simp [h_a_in_x]
-      exact h_s_in_y
+      repeat simp_all
     | inr h_s_in_z =>
       apply h_eq_xz
-      simp [h_s_in_z]
+      simp_all
   | transitivity h_der_xy h_der_yz h_xy_holds h_yz_holds =>
     intro t₁ t₂ h_t₁ h_t₂ h_eq_x s h_s_in_z
     apply h_yz_holds h_t₁ h_t₂
-    intro a h_a_in_y
-    exact h_xy_holds h_t₁ h_t₂ h_eq_x a h_a_in_y
-    exact h_s_in_z
+    · intro a h_a_in_y
+      exact h_xy_holds h_t₁ h_t₂ h_eq_x a h_a_in_y
+    · trivial
 
-/-- F⁺: Closure of a FD set. -/
+/-- `F⁺`: Closure of an FD set $F$. -/
+@[
+  blueprint "definition:fd-closure"
+  (title := /-- Functional Dependency Closure -/)
+  (statement := /--
+    The closure of a functional dependencies set $F$, denoted as $F^+$,
+    is the set of all functional dependencies that can be implied by $F$.
+  -/)
+]
 def func_dep_closure (F : Finset (FunctionalDependency α)) : Set (FunctionalDependency α) :=
   {f | F ⊨ f}
 
+/-- Projection of the closure of an FD set $F$ onto a schema $R$. -/
+@[
+  blueprint "definition:fd-closure-proj"
+  (title := /-- Functional Dependency Closure Projection -/)
+  (statement := /--
+    The projection of the closure of a set of functional dependencies $F$
+    onto a schema $R$ is the set of all functional dependencies
+    that can be implied by $F$ and whose left-hand side and right-hand side
+    are both subsets of $R$.
+  -/)
+]
 def func_dep_closure_proj (F : Finset (FunctionalDependency α)) (R : Finset α) : Set (FunctionalDependency α) :=
   {f | F ⊨ f ∧ f.lhs ⊆ R ∧ f.rhs ⊆ R}
 
-/-- X⁺: Closure of an attribute set X with respect to a FD set, F. (Weak definition.) -/
+/-- `X⁺`: Closure of an attribute set `X` with respect to an FD set, `F`. (Weak definition as a Set.) -/
+@[
+  blueprint "definition:attr-closure-weak"
+  (title := /-- Attribute Closure (Weak) -/)
+  (statement := /--
+    The closure of an attribute set $X$, denoted as $X^+$,
+    with respect to a set of functional dependencies $F$,
+    is the set of all attributes that can be functionally determined by $X$ using the dependencies in $F$.
+    Formally,
+    \[
+        X^+ = \left\{ a | F \vDash X \rightarrow \left\{ a \right\} \right\}.
+    \]
+  -/)
+]
 def attr_closure_weak (F : Finset (FunctionalDependency α)) (X : Finset α) : Set α :=
   {a | (X -> {a} : FunctionalDependency α) ∈ func_dep_closure F}
 
-/-- Filtered set of FDs where lhs should be a subset of X.  -/
+/-- Filtered set of FDs where `lhs` are subsets of `X`. -/
+@[
+  blueprint "definition:left-filter"
+  (title := /-- Left-Filter of FD Set -/)
+  (statement := /--
+    We filter the set of functional dependencies $F$ to only include those whose
+    left-hand side is a subset of $X$. Formally,
+    \[
+        \left\{ fd \in F \mid fd.lhs \subseteq X \right\}.
+    \]
+  -/)
+]
 def left_filter (F : Finset (FunctionalDependency α)) (X : Finset α) : Finset (FunctionalDependency α) :=
   {fd ∈ F | fd.lhs ⊆ X}
 
 /--
   Single step iteration for computing the attribute set closure.
-  If α -> β is in F and α ⊆ X, then we can add β to X.
+  For every FD in the left-filtered set, we add its right-hand side to the attribute set.
+  (If `α -> β ∈ F` and `α ⊆ X`, then we can add `β` to `X`.)
 -/
+@[
+  blueprint "definition:attr-closure-impl-step"
+  (title := /-- Attribute Closure (Single Step) -/)
+  (statement := /--
+    A single step iteration for computing the attribute set closure.
+    For every FD in the left-filtered set, we add its right-hand side to the attribute set.
+    Formally, we have:
+    \[
+        X'_F = X \cup \bigcup_{\alpha \rightarrow \beta \in F, \alpha \subseteq X} \beta.
+    \]
+  -/)
+]
 def attr_closure_impl_step (F : Finset (FunctionalDependency α)) (X : Finset α) : Finset α :=
   X ∪ (left_filter F X).sup (λ fd => fd.rhs)
 
 /-- Auxiliary definition for iterating the closure step. -/
+@[
+  blueprint "definition:attr-closure-impl-iter"
+  (title := /-- Attribute Closure (Iteration) -/)
+  (statement := /--
+    We iterate the single step of attribute closure computation to compute the full closure.
+    This is denoted as $X^n_F$, where $n$ is the number of iterations and $X^0_F = X$.
+  -/)
+]
 def ac_seq (F : Finset (FunctionalDependency α)) (X : Finset α) (n : ℕ) : Finset α :=
   (attr_closure_impl_step F)^[n] X
 
 /-- Simply unfold the iteration by one layer. -/
+@[
+  blueprint "lemma:attr-closure-iter-succ"
+  (title := /-- Attribute Closure (Iteration Successor) -/)
+  (statement := /--
+    Unfolding the iteration of attribute closure sequence by one layer, we have:
+    \[
+        X^{n+1}_F = X^n_F \cup \bigcup_{\alpha \rightarrow \beta \in F, \alpha \subseteq X^n_F} \beta.
+    \]
+  -/)
+  (proof := /-- This proof is trivial. -/)
+]
 lemma ac_seq_succ (F : Finset (FunctionalDependency α)) (X : Finset α) (n : ℕ) :
   ac_seq F X (n + 1) = attr_closure_impl_step F (ac_seq F X n) := by
   simp [ac_seq, Function.iterate_succ_apply']
 
-/-- Implementation of attribute set closure, where we iterate the single step |F| times (in the worst case). -/
+/-- Implementation of the attribute closure algorithm,
+    where we iterate the single step |F| times (in the worst case).
+-/
+@[
+  blueprint "definition:attr-closure-impl"
+  (title := /-- Attribute Closure (Full Implementation) -/)
+  (statement := /--
+    We iterate the single step of the attribute closure algorithm $|F|$ times
+    (in the worst case) to obtain the full closure.
+    Formally, we have:
+    \[
+        X^+ = X^{|F|}_F.
+    \]
+  -/)
+]
 def attr_closure_impl (F : Finset (FunctionalDependency α)) (X : Finset α) : Finset α :=
   ac_seq F X F.card
 
 /-- Soundness of a single step of the attribute set closure computation. -/
+@[
+  blueprint "lemma:attr-closure-step-soundness"
+  (title := /-- Attribute Closure (Step Soundness) -/)
+  (statement := /--
+    Every single step iterated in the attribute closure algorithm is sound. Formally,
+    \[
+        F \vdash (X \to X'_F).
+    \]
+  -/)
+  (proof := /--
+    First, we apply the \textit{union} rule of Armstrong's axioms to split the result of
+    the single step into two parts: the original attribute set $X$ and
+    the union of the right-hand sides of the dependencies in the left-filtered set.
+    Then, we show that both parts can be derived from $F$:
+    \begin{itemize}
+      \item For $X$, we can derive $X \to X$ using the \textit{reflexivity} rule, trivially.
+      \item For $\bigcup_{\alpha \rightarrow \beta \in F, \alpha \subseteq X} \beta$,
+            we first unfold the filter to show that the filter is a subset of $F$.
+            Next, we show that for any subset $S'$ of the filtered set $S$, we can derive
+            $X \rightarrow \bigcup_{\alpha \rightarrow \beta \in S'} \beta$.
+            To prove this, we use induction on $S'$.
+
+            In the base case where $S'$ is empty, we can derive $X \rightarrow \emptyset$
+            using the \textit{reflexivity} rule, trivially.
+
+            In the inductive case, we have that the target holds for a strict subset $S''$ of $S'$,
+            and we need to show that as we introduce a new FD $fd \in S$ into $S''$,
+            the target still holds for the updated $S''$.
+
+            We again apply the \textit{union} rule to split the target into two parts:
+            the right-hand side of $fd$ and the union of the right-hand sides of
+            the dependencies in the original $S''$.
+
+            For the first part, we can derive $X \rightarrow fd.rhs$ using the \textit{transitivity} rule
+            by introducing the left-hand side of $fd$ as the bridge.
+            Specifically, since $fd$ is in the left-filtered set, its left-hand side is a subset of $X$,
+            so we can derive $X \rightarrow fd.lhs$ using the \textit{reflexivity} rule.
+            Then, $fd$ itself can also be derived from $F$ since it is in $F$.
+
+            The second part is exactly the inductive hypothesis, so it is proved trivially.
+
+            Finally, we apply the above result to $S$ to conclude this case.
+    \end{itemize}
+    With both parts derived, we arrive at the conclusion that $F \vdash (X \to X'_F)$.
+  -/)
+]
 lemma attr_closure_step_sound {F : Finset (FunctionalDependency α)} {X : Finset α} :
   F ⊢ (X -> attr_closure_impl_step F X) := by
   simp [attr_closure_impl_step]
@@ -154,7 +420,29 @@ lemma attr_closure_step_sound {F : Finset (FunctionalDependency α)} {X : Finset
     apply h_s'_sup S
     simp
 
-/-- Soundness of the attribute closure implementation, induced by iterating the single step. -/
+/-- Soundness of the attribute closure algorithm full implementation. -/
+@[
+  blueprint "theorem:attr-closure-impl-soundness"
+  (title := /-- Attribute Closure (Full Implementation Soundness) -/)
+  (statement := /--
+    The full implementation of the attribute closure algorithm is sound. Formally,
+    \[
+        F \vdash (X \to X^+).
+    \]
+  -/)
+  (proof := /--
+    With the soundness proof of a single step of the attribute closure algorithm,
+    we show the soundness of the full implementation by induction on the number of iterations
+    \textit{i.e.}, the cardinality of the FD set $F$.
+
+    In the base case where $F = \emptyset$, the closure of any attribute set is itself,
+    and we can derive $X \to X$ using the \textit{reflexivity} rule, trivially.
+
+    In the inductive case, we assume that the attribute closure implementation is sound
+    for any FD set with $|F| = n$, and we apply the single step soundness to show that
+    the attribute closure implementation is also sound for any FD set with $|F| = n + 1$.
+  -/)
+]
 theorem attr_closure_sound {F : Finset (FunctionalDependency α)} {X : Finset α} :
   F ⊢ (X -> attr_closure_impl F X) := by
   simp [attr_closure_impl]
@@ -165,14 +453,50 @@ theorem attr_closure_sound {F : Finset (FunctionalDependency α)} {X : Finset α
     · exact ih
     · simp [ac_seq_succ,attr_closure_step_sound]
 
-/-- Subset property of a single step of the attribute set closure computation. -/
+/-- An attribute set is a subset of its single-step closure set. -/
+@[
+  blueprint "lemma:subset-attr-closure-impl-step"
+  (title := /-- Subset of Attribute Closure (Step) -/)
+  (statement := /--
+    An attribute set is a subset of its single-step closure set. Formally,
+    \[
+        X \subseteq X'_F.
+    \]
+  -/)
+  (proof := /--
+    This proof is trivial since the original attribute set $X$ is included
+    in the result of the single step by definition.
+  -/)
+]
 lemma attr_closure_subset_step {F : Finset (FunctionalDependency α)} {X : Finset α} :
   X ⊆ attr_closure_impl_step F X := by
   intro a ha
   simp [attr_closure_impl_step]
   exact Or.inl ha
 
-/-- Subset property of the attribute set closure implementation. -/
+/-- An attribute set is a subset of its closure. -/
+@[
+  blueprint "lemma:subset-attr-closure-impl"
+  (title := /-- Subset of Attribute Closure (Full Implementation) -/)
+  (statement := /--
+    An attribute set is a subset of its closure. Formally,
+    \[
+        X \subseteq X^+.
+    \]
+  -/)
+  (proof := /--
+    With the subset relation between an attribute set and its single-step closure,
+    we can show that the attribute set is also a subset of the full closure by induction
+    on the number of iterations in the full implementation.
+
+    In the base case where $F = \emptyset$, the closure of any attribute set is itself,
+    so the subset relation holds trivially.
+
+    In the inductive case, we assume that $X \subseteq X^n_F$ for any FD set with $|F| = n$,
+    and we apply the subset relation for a single step to show that $X \subseteq X^{n+1}_F$
+    for any FD set with $|F| = n + 1$.
+  -/)
+]
 lemma attr_closure_subset_impl {F : Finset (FunctionalDependency α)} {X : Finset α} :
   X ⊆ attr_closure_impl F X := by
   rw [attr_closure_impl]
@@ -183,7 +507,20 @@ lemma attr_closure_subset_impl {F : Finset (FunctionalDependency α)} {X : Finse
       simp [ac_seq_succ]
       exact attr_closure_subset_step (ih ha)
 
-/-- left-filter is monotone with respect to the attribute set. -/
+/-- If `X ⊆ Y`, then the left-filter of `X` is a subset of the left-filter of `Y`. -/
+@[
+  blueprint "lemma:left-filter-mono"
+  (title := /-- Left-Filter Monotonicity -/)
+  (statement := /--
+    If $X \subseteq Y$, then the left-filter of $X$ is a subset of the left-filter of $Y$. Formally,
+    \[
+        X \subseteq Y \implies
+        \left\{ fd \in F \mid fd.lhs \subseteq X \right\}
+        \subseteq
+        \left\{ fd \in F \mid fd.lhs \subseteq Y \right\}.
+    \]
+  -/)
+]
 lemma filtered_mono {F : Finset (FunctionalDependency α)} {X Y : Finset α} (h : X ⊆ Y) :
   left_filter F X ⊆ left_filter F Y := by
   intro fd hfd
@@ -193,6 +530,9 @@ lemma filtered_mono {F : Finset (FunctionalDependency α)} {X Y : Finset α} (h 
   · exact subset_trans hfd.2 h
 
 /-- When left-filter reaches the fixed point, the single step also does. -/
+@[
+  blueprint "lemma:fixed-point-on-left-filter"
+]
 lemma fixed_of_filtered_eq {F : Finset (FunctionalDependency α)} {X : Finset α}
   (h : left_filter F X = left_filter F (attr_closure_impl_step F X)) :
   attr_closure_impl_step F (attr_closure_impl_step F X) = attr_closure_impl_step F X := by
@@ -200,18 +540,19 @@ lemma fixed_of_filtered_eq {F : Finset (FunctionalDependency α)} {X : Finset α
   simp
 
 /-- The closure extends monotonically with respect to the number of iterations. -/
+@[
+  blueprint "lemma:attr-closure-impl-iter-mono"
+]
 lemma seq_mono_step {F : Finset (FunctionalDependency α)} {X : Finset α} {n : ℕ} :
   ac_seq F X n ⊆ ac_seq F X (n + 1) := by
     simp [ac_seq_succ]
     set XN := ac_seq F X n
     exact attr_closure_subset_step
 
-/-- The left-filter with respect to the clusure set is monotone with respect to the number of iterations. -/
-lemma seq_filtered_mono {F : Finset (FunctionalDependency α)} {X : Finset α} {n : ℕ} :
-  left_filter F (ac_seq F X n) ⊆ left_filter F (ac_seq F X (n + 1)) :=
-  filtered_mono seq_mono_step
-
 /-- When the closure set stablizes at some point, it remains the same for all subsequent iterations. -/
+@[
+  blueprint "lemma:stability-on-attr-closure-impl-iter"
+]
 lemma seq_fixed_of_eq {F : Finset (FunctionalDependency α)} {X : Finset α} {k n : ℕ}
   (h : ac_seq F X (k + 1) = ac_seq F X k) (hn : k ≤ n) :
   ac_seq F X n = ac_seq F X k := by
@@ -226,6 +567,9 @@ lemma seq_fixed_of_eq {F : Finset (FunctionalDependency α)} {X : Finset α} {k 
     simp [heq, ac_seq_succ, ih, h_step]
 
 /-- Lower bound for strict monotonicity. -/
+@[
+  blueprint "lemma:card-left-filter-attr-closure-impl-iter-lower-bound"
+]
 lemma filtered_card_ge_succ (F : Finset (FunctionalDependency α)) (X : Finset α) (k : ℕ)
   (h_strict : ∀ i < k, left_filter F (ac_seq F X i) ⊂ left_filter F (ac_seq F X (i + 1)))
   (h_pos : 0 < (left_filter F (ac_seq F X 0)).card) :
@@ -240,6 +584,9 @@ lemma filtered_card_ge_succ (F : Finset (FunctionalDependency α)) (X : Finset �
     omega
 
 /-- The set of filtered dependencies cannot grow indefinitely. -/
+@[
+  blueprint "lemma:exists-fixed-point-on-left-filter"
+]
 lemma exists_filtered_eq (F : Finset (FunctionalDependency α)) (X : Finset α)
   (h_pos : 0 < (left_filter F (ac_seq F X 0)).card) :
   ∃ k < F.card, left_filter F (ac_seq F X k) = left_filter F (ac_seq F X (k + 1)) := by
@@ -249,12 +596,15 @@ lemma exists_filtered_eq (F : Finset (FunctionalDependency α)) (X : Finset α)
     intro i hi
     have h_ne := h_contra i hi
     rw [Finset.ssubset_iff_subset_ne]
-    exact ⟨seq_filtered_mono, h_ne⟩
+    exact ⟨filtered_mono seq_mono_step, h_ne⟩
   have h_bound := filtered_card_ge_succ F X F.card h_strict h_pos
   have h_le : (left_filter F (ac_seq F X F.card)).card ≤ F.card := Finset.card_le_card (Finset.filter_subset _ _)
   omega
 
 /-- The closure reaches a fixed point at step `|F|`. -/
+@[
+  blueprint "lemma:fixed-point-on-attr-closure-impl-iter"
+]
 lemma seq_stabilizes (F : Finset (FunctionalDependency α)) (X : Finset α) :
   ac_seq F X (F.card + 1) = ac_seq F X F.card := by
   by_cases h_zero : (left_filter F (ac_seq F X 0)).card = 0
@@ -277,6 +627,9 @@ lemma seq_stabilizes (F : Finset (FunctionalDependency α)) (X : Finset α) :
     rw [h_all (F.card + 1) h2, h_all F.card h1]
 
 /-- The computed closure is closed under `F`: if an FD's LHS is in the closure, its RHS is also included. -/
+@[
+  blueprint "lemma:attr-closure-impl-closed"
+]
 lemma impl_closed {F : Finset (FunctionalDependency α)} {X : Finset α} :
   (attr_closure_impl F X).is_closed_under F := by
   set XP := attr_closure_impl F X
@@ -292,6 +645,9 @@ lemma impl_closed {F : Finset (FunctionalDependency α)} {X : Finset α} :
   exact h_step
 
 /-- All attributes in the tuple are true. -/
+@[
+  blueprint "definition:counterexample-t-all-true"
+]
 def t_all_true (U : Finset α) : α →. Bool :=
   fun a => {
     Dom := a ∈ U
@@ -299,6 +655,9 @@ def t_all_true (U : Finset α) : α →. Bool :=
   }
 
 /-- Only attributes in the closure S are true. -/
+@[
+  blueprint "definition:counterexample-t_closure"
+]
 def t_closure (U S : Finset α) : α →. Bool :=
   fun a => {
     Dom := a ∈ U
@@ -306,6 +665,9 @@ def t_closure (U S : Finset α) : α →. Bool :=
   }
 
 /-- A counterexample relation instance that satisfies all FDs in F but violates the FD X -> Y when Y is not a subset of the closure of X. -/
+@[
+  blueprint "definition:counterexample"
+]
 def counterexample_relation (U S : Finset α) : RelationInstance α Bool where
   schema := U
   tuples := {t_all_true U, t_closure U S}
@@ -318,6 +680,9 @@ def counterexample_relation (U S : Finset α) : RelationInstance α Bool where
     · rfl
 
 /-- If F is a set of FDs such that all FDs in F have their attributes contained in U, and S is closed under F, then the counterexample relation instance satisfies all FDs in F. -/
+@[
+  blueprint "lemma:counterexample-sat-F"
+]
 lemma counterexample_sat_F {U S : Finset α} {F : Finset (FunctionalDependency α)}
   (h_F_sub_U : ∀ fd ∈ F, fd.lhs ⊆ U ∧ fd.rhs ⊆ U) (h_closed : S.is_closed_under F) :
   (counterexample_relation U S).satisfies F := by
@@ -352,6 +717,9 @@ lemma counterexample_sat_F {U S : Finset α} {F : Finset (FunctionalDependency �
   · simp
 
 /-- If the FD X -> Y holds on the counterexample relation instance, then Y must be a subset of S. -/
+@[
+  blueprint "lemma:subset-of-closure-if-fd-holds"
+]
 lemma subset_of_closure_if_holds {U X Y S : Finset α}
   (h_X_sub_S : X ⊆ S) (h_Y_sub_U : Y ⊆ U)
   (h_holds : (X -> Y : FunctionalDependency α).holds (counterexample_relation U S)) :
@@ -372,6 +740,9 @@ lemma subset_of_closure_if_holds {U X Y S : Finset α}
   exact of_decide_eq_true h_val.symm
 
 /-- If F ⊢ X -> Y, then Y is a subset of the closure of X. -/
+@[
+  blueprint "theorem:attr-closure-impl-completeness"
+]
 theorem attr_closure_complete {F : Finset (FunctionalDependency α)} {X Y : Finset α} :
   F ⊢ (X -> Y) → Y ⊆ attr_closure_impl F X := by
   intro h_der
@@ -401,6 +772,9 @@ theorem attr_closure_complete {F : Finset (FunctionalDependency α)} {X Y : Fins
   exact subset_of_closure_if_holds attr_closure_subset_impl h_Y_sub_U h_holds
 
 /-- Completeness of Armstrong's Axioms: if F ⊨ f, then F ⊢ f. -/
+@[
+  blueprint "theorem:armstrong-completeness"
+]
 theorem armstrong_complete {F : Finset (FunctionalDependency α)} {f : FunctionalDependency α} :
   F ⊨ f → F ⊢ f := by
   intro h_implies
@@ -448,6 +822,9 @@ theorem armstrong_complete {F : Finset (FunctionalDependency α)} {f : Functiona
   exact Derives.transitivity h_S_sound h_Y_ref
 
 /-- Armstrong's axioms are correct, given their soundness and completeness. -/
+@[
+  blueprint "theorem:armstrong-correctness"
+]
 theorem armstrong_correct {F : Finset (FunctionalDependency α)} {f : FunctionalDependency α} :
   F ⊢ f ↔ F ⊨ f := by
   constructor
@@ -455,6 +832,9 @@ theorem armstrong_correct {F : Finset (FunctionalDependency α)} {f : Functional
   · exact armstrong_complete
 
 /-- Prove that the computed attribute closure is correct with respect to the semantic definition of attribute closure. -/
+@[
+  blueprint "theorem:attr-closure-impl-correctness"
+]
 theorem attr_closure_impl_correct {F : Finset (FunctionalDependency α)} {X : Finset α} :
   attr_closure_impl F X = attr_closure_weak F X := by
   ext x
@@ -470,17 +850,29 @@ theorem attr_closure_impl_correct {F : Finset (FunctionalDependency α)} {X : Fi
     exact attr_closure_complete (armstrong_complete h_x_in_attr_closure)
 
 /-- A strong definition of attribute closure, which is a finite set. -/
+@[
+  blueprint "definition:attr-closure-strong"
+]
 def attr_closure (F : Finset (FunctionalDependency α)) (X : Finset α) : Finset α :=
   attr_closure_impl F X
 
 /-- Prove that the strong definition of attribute closure is equivalent to the weak definition via the implementation. -/
+@[
+  blueprint "theorem:attr-closure-strong-correctness"
+]
 theorem attr_closure_strong_correct {F : Finset (FunctionalDependency α)} {X : Finset α} :
   attr_closure F X = attr_closure_weak F X := by
   simp [attr_closure, attr_closure_impl_correct]
 
+@[
+  blueprint "definition:attr-closure-proj"
+]
 def attr_closure_proj (F : Finset (FunctionalDependency α)) (X R : Finset α) : Finset α :=
   attr_closure_impl F X ∩ R
 
+@[
+  blueprint "theorem:subset-attr-closure-proj"
+]
 theorem subset_attr_closure_proj {F : Finset (FunctionalDependency α)} {X R : Finset α} :
   X ⊆ R → X ⊆ attr_closure_proj F X R := by
   rw [attr_closure_proj]
@@ -489,6 +881,9 @@ theorem subset_attr_closure_proj {F : Finset (FunctionalDependency α)} {X R : F
   · exact attr_closure_subset_impl
   · trivial
 
+@[
+  blueprint "theorem:attr-closure-proj-subset"
+]
 theorem attr_closure_proj_subset {F : Finset (FunctionalDependency α)} {X R : Finset α} :
   attr_closure_proj F X R ⊆ R := by
   rw [attr_closure_proj]

@@ -6,3 +6,4 @@ import RelationalAlgebra.FOL.Examples
 import RelationalAlgebra.Equivalence.Equivalence
 
 import RelationalAlgebra.NF.Closure
+import RelationalAlgebra.NF.BCNF
