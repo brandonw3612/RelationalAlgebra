@@ -60,15 +60,12 @@ lemma BCNF_sem_eq_syn {R : Finset α} {F : Finset (FunctionalDependency α)} :
         · rw [attr_closure_proj, Finset.inter_eq_right] at h_rhs_eq_R
           apply armstrong_sound
           apply Derives.transitivity attr_closure_sound (Derives.reflexivity h_rhs_eq_R)
-        · simp
-          trivial
+        · simp_all
     · left
       rw [attr_closure_proj] at h_rhs_eq_lhs
       apply armstrong_complete at h_imp
       apply attr_closure_complete at h_imp
-      have h_rhs_inter_r : f.rhs ∩ R = f.rhs := by
-        rw [Finset.inter_eq_left]
-        trivial
+      have h_rhs_inter_r : f.rhs ∩ R = f.rhs := by simp_all
       have h_rhs_r_sub_ac_r : f.rhs ∩ R ⊆ attr_closure_impl F f.lhs ∩ R := Finset.inter_subset_inter_right h_imp
       rw [h_rhs_inter_r, h_rhs_eq_lhs] at h_rhs_r_sub_ac_r
       trivial
@@ -81,7 +78,7 @@ instance decidable_is_violator (X R : Finset α) (F : Finset (FunctionalDependen
   unfold is_violator
   infer_instance
 
-def find_bcnf_violators (R : Finset α) (F : Finset (FunctionalDependency α)) : Finset (Finset α) :=
+def find_BCNF_violators (R : Finset α) (F : Finset (FunctionalDependency α)) : Finset (Finset α) :=
     R.powerset.filter (fun X => is_violator X R F)
 
 inductive SchemaTree (α) where
@@ -123,17 +120,20 @@ lemma R2_subset_R {X R : Finset α} {F : Finset (FunctionalDependency α)}
       trivial
   · exact h_X
 
+def is_picker_valid (picker : Finset (Finset α) → Option (Finset α)) : Prop :=
+  ∀ {violators : Finset (Finset α)}, violators = ∅ ∨ (∃ X, picker violators = some X) ∧ (∀ X, picker violators = some X → X ∈ violators)
+
 def BCNF_decompose
   (R : Finset α) (F : Finset (FunctionalDependency α))
   (picker : Finset (Finset α) → Option (Finset α)) : SchemaTree α :=
-    let violators := find_bcnf_violators R F
+    let violators := find_BCNF_violators R F
     if violators = ∅ then SchemaTree.leaf R
     else match picker violators with
       | none => SchemaTree.leaf R
       | some X =>
         if h_X : X ∈ violators then
           have h_violator : is_violator X R F := by
-            dsimp [violators, find_bcnf_violators] at h_X
+            dsimp [violators, find_BCNF_violators] at h_X
             exact (Finset.mem_filter.mp h_X).2
           let R₁ := attr_closure_proj F X R
           let R₂ := (R \ attr_closure_proj F X R) ∪ X
@@ -144,7 +144,7 @@ decreasing_by
   · exact Finset.card_lt_card (R1_subset_R h_violator)
   · exact Finset.card_lt_card (R2_subset_R h_violator)
 
-lemma bcnf_step_cover {X R : Finset α} {F : Finset (FunctionalDependency α)}
+lemma BCNF_step_cover {X R : Finset α} {F : Finset (FunctionalDependency α)}
   (h_violator : is_violator X R F) :
   attr_closure_proj F X R ∪ ((R \ attr_closure_proj F X R) ∪ X) = R := by
   rw [Finset.union_comm, Finset.union_assoc]
@@ -157,7 +157,7 @@ lemma bcnf_step_cover {X R : Finset α} {F : Finset (FunctionalDependency α)}
   rw [h_R_ac_eq_R, Finset.union_eq_right]
   trivial
 
-lemma bcnf_step_intersection {X R : Finset α} {F : Finset (FunctionalDependency α)}
+lemma BCNF_step_intersection {X R : Finset α} {F : Finset (FunctionalDependency α)}
   (h_violator : is_violator X R F) :
   attr_closure_proj F X R ∩ (X ∪ (R \ attr_closure_proj F X R)) = X := by
   rcases h_violator with ⟨h_X, _, _⟩
@@ -192,12 +192,12 @@ lemma restrict_dom {α μ : Type} (t : α →. μ) {S : Set α} (h_sub : S ⊆ t
     unfold PFun.restrict Part.restrict
     simp
 
-theorem bcnf_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependency α)}
+theorem BCNF_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependency α)}
   (h_violator : is_violator X R F) :
   let d : Decomposition R := {
     left := attr_closure_proj F X R,
     right := (R \ attr_closure_proj F X R) ∪ X,
-    cover := bcnf_step_cover h_violator
+    cover := BCNF_step_cover h_violator
   };
   d.is_lossless F := by
   have h_X_subset_R₁ : X ⊆ attr_closure_proj F X R := subset_attr_closure_proj h_violator.1
@@ -206,7 +206,7 @@ theorem bcnf_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependenc
   intro μ r h_r h_sat
   apply RelationInstance.ext
   · simp only [join, projection]
-    rw [bcnf_step_cover h_violator, h_r]
+    rw [BCNF_step_cover h_violator, h_r]
   · apply Set.Subset.antisymm
     · rw [Set.subset_def]
       intro t h_t
@@ -238,7 +238,7 @@ theorem bcnf_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependenc
               symm
               exact restrict_apply_mem t h_a
             · intro h_a
-              rw [restrict_dom, restrict_dom, ← Finset.coe_union, bcnf_step_cover h_violator, ← h_r, ← r.validSchema t h_t] at h_a
+              rw [restrict_dom, restrict_dom, ← Finset.coe_union, BCNF_step_cover h_violator, ← h_r, ← r.validSchema t h_t] at h_a
               rw [Part.eq_none_iff']
               exact h_a
     · rw [Set.subset_def]
@@ -263,19 +263,14 @@ theorem bcnf_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependenc
         have h_a_in_R₂ := Finset.mem_of_subset h_X_subset_R₂ h_a
         have h_t_eq : t₁ a = t₂ a := by
           rcases h_agree a with ⟨h_t₁_eq, h_t₂_eq, _⟩
-          have h_a_in_dom₁ : a ∈ t₁.Dom := by
-            rw [h_t₁_dom, Finset.mem_coe]
-            trivial
+          have h_a_in_dom₁ : a ∈ t₁.Dom := by simp_all
           have h_t₁_eq := h_t₁_eq h_a_in_dom₁
-          have h_a_in_dom₂ : a ∈ t₂.Dom := by
-            rw [h_t₂_dom, Finset.mem_coe]
-            trivial
+          have h_a_in_dom₂ : a ∈ t₂.Dom := by simp_all
           have h_t₂_eq := h_t₂_eq h_a_in_dom₂
           rw [← h_t₁_eq, ← h_t₂_eq]
         rcases h_t₁_u a with ⟨h_u_eq, _⟩
         rcases h_t₂_v a with ⟨h_v_eq, _⟩
-        rw [← h_u_eq h_a_in_R₁, ← h_v_eq h_a_in_R₂]
-        trivial
+        simp_all
       have h_f₁_dev : F ⊢ (X -> attr_closure_proj F X R) := by
         rw [attr_closure_proj]
         exact Derives.transitivity attr_closure_sound (Derives.reflexivity Finset.inter_subset_left)
@@ -287,34 +282,66 @@ theorem bcnf_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependenc
         intro a
         rw [← Part.ext_iff]
         by_cases h_a : a ∉ R
-        · have h_a_not_in_doms : a ∉ t₁.Dom ∪ t₂.Dom := by
-            rw [h_t₁_dom, h_t₂_dom, ← Finset.coe_union, bcnf_step_cover h_violator, Finset.mem_coe]
-            trivial
+        · have h_a_not_in_doms : a ∉ t₁.Dom ∪ t₂.Dom := by simp_all [← Finset.coe_union, BCNF_step_cover h_violator]
           have h_t_none := (h_agree a).2.2 h_a_not_in_doms
-          have h_a_not_in_v_dom : a ∉ v.Dom := by
-            rw [r.validSchema v h_v, h_r, Finset.mem_coe]
-            trivial
+          have h_a_not_in_v_dom : a ∉ v.Dom := by simp_all [r.validSchema v h_v]
           have h_v_none : v a = Part.none := Part.eq_none_iff'.mpr h_a_not_in_v_dom
           rw [h_v_none, h_t_none]
         · by_cases h_a' : a ∈ attr_closure_proj F X R
-          · have h_a_in_dom₁ : a ∈ t₁.Dom := by
-              rw [h_t₁_dom, Finset.mem_coe]
-              trivial
+          · have h_a_in_dom₁ : a ∈ t₁.Dom := by simp_all
             have h_t_eq_t₁ := (h_agree a).1 h_a_in_dom₁
             have h_t₁_eq_u := (h_t₁_u a).1 h_a'
             have h_u_eq_v := h_agree_R₁ a h_a'
             rw [h_t_eq_t₁, h_t₁_eq_u, h_u_eq_v]
           · simp at h_a
-            rw [← bcnf_step_cover h_violator, Finset.mem_union] at h_a
+            rw [← BCNF_step_cover h_violator, Finset.mem_union] at h_a
             have h_a' := h_a.resolve_left h_a'
-            have h_a_in_dom₂ : a ∈ t₂.Dom := by
-              rw [h_t₂_dom, Finset.mem_coe]
-              trivial
+            have h_a_in_dom₂ : a ∈ t₂.Dom := by simp_all
             have h_t_eq_t₂ := (h_agree a).2.1 h_a_in_dom₂
             have h_t₂_eq_v := (h_t₂_v a).1 h_a'
-            rw [h_t_eq_t₂, h_t₂_eq_v]
-      rw [h_t_eq_v]
-      trivial
+            simp_all
+      simp_all
+
+def all_are_BCNF (T : SchemaTree α) (F : Finset (FunctionalDependency α)) : Prop :=
+  ∀ {L : Finset α}, L ∈ T.leaves → is_BCNF L F
+
+theorem BCNF_decompose_leaves_are_BCNF {R : Finset α} {F : Finset (FunctionalDependency α)}
+  {picker : Finset (Finset α) → Option (Finset α)}
+  (h_picker_valid : is_picker_valid picker) :
+  all_are_BCNF (BCNF_decompose R F picker) F := by
+  rw [is_picker_valid] at h_picker_valid
+  induction R using BCNF_decompose.induct with
+  | F => exact F
+  | picker vlts => exact picker vlts
+  | case1 R vlts => next h_no_vlt =>
+    simp_all [vlts, all_are_BCNF, BCNF_decompose, SchemaTree.leaves]
+    rw [BCNF_sem_eq_syn]
+    intro X h_X
+    simp [find_BCNF_violators] at h_no_vlt
+    have h_X_not_vlt := h_no_vlt h_X
+    simp [is_violator] at h_X_not_vlt
+    apply h_X_not_vlt at h_X
+    simp_all [imp_iff_not_or]
+  | case2 R vlts h_vlt => next h_pick_none =>
+    simp_all [vlts]
+    obtain ⟨h_pick_X, _⟩ := h_picker_valid.resolve_left h_vlt
+    simp_all
+  | case3 R vlts h_vlt X h_X h_X' h_X_vlt R₁ R₂ =>
+    simp_all [vlts, R₁, R₂]
+    rw [BCNF_decompose, all_are_BCNF]
+    simp_all
+    intro L h_L
+    rw [SchemaTree.leaves, Finset.mem_union] at h_L
+    rcases h_L with h_L₁ | h_L₂
+    · next ih₁ _ =>
+      rw [all_are_BCNF] at ih₁
+      exact ih₁ h_L₁
+    · next ih₂ =>
+      rw [all_are_BCNF] at ih₂
+      exact ih₂ h_L₂
+  | case4 R vlts h_vlt X h_X => next h_X' =>
+    obtain ⟨_, h_X'⟩ := h_picker_valid.resolve_left h_vlt
+    simp_all
 
 end NF
 
