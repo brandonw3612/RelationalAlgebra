@@ -37,6 +37,19 @@ def Decomposition.is_lossless {R : Finset α} (d : Decomposition R) (F : Finset 
     (h_r : r.schema = R) → r.satisfies F →
     r = join (projection r d.left (d.left_subset h_r)) (projection r d.right (d.right_subset h_r))
 
+inductive DecompositionTree : Finset α → Type where
+  | leaf (R : Finset α) : DecompositionTree R
+  | node {R : Finset α} (d : Decomposition R)
+    (left : DecompositionTree d.left) (right : DecompositionTree d.right) : DecompositionTree R
+
+def DecompositionTree.leaves {R : Finset α} : DecompositionTree R → Finset (Finset α)
+  | DecompositionTree.leaf R => {R}
+  | DecompositionTree.node _ left right => left.leaves ∪ right.leaves
+
+def DecompositionTree.is_lossless {R : Finset α} : DecompositionTree R → Finset (FunctionalDependency α) → Prop
+  | .leaf _, _ => True
+  | .node d left right, F => d.is_lossless F ∧ left.is_lossless F ∧ right.is_lossless F
+
 end NF
 
 namespace RM

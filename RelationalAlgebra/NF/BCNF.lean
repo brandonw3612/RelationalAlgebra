@@ -81,15 +81,6 @@ instance decidable_is_violator (X R : Finset α) (F : Finset (FunctionalDependen
 def find_BCNF_violators (R : Finset α) (F : Finset (FunctionalDependency α)) : Finset (Finset α) :=
     R.powerset.filter (fun X => is_violator X R F)
 
-inductive SchemaTree (α) where
-  | leaf (R : Finset α) : SchemaTree α
-  | node (R R₁ R₂ : Finset α) (left right : SchemaTree α) : SchemaTree α
-deriving Nonempty
-
-def SchemaTree.leaves : SchemaTree α → Finset (Finset α)
-  | leaf R => {R}
-  | node _ _ _ left right => left.leaves ∪ right.leaves
-
 lemma R1_subset_R {X R : Finset α} {F : Finset (FunctionalDependency α)}
   (h_violator : is_violator X R F) :
   attr_closure_proj F X R ⊂ R := by
@@ -123,27 +114,6 @@ lemma R2_subset_R {X R : Finset α} {F : Finset (FunctionalDependency α)}
 def is_picker_valid (picker : Finset (Finset α) → Option (Finset α)) : Prop :=
   ∀ {violators : Finset (Finset α)}, violators = ∅ ∨ (∃ X, picker violators = some X) ∧ (∀ X, picker violators = some X → X ∈ violators)
 
-def BCNF_decompose
-  (R : Finset α) (F : Finset (FunctionalDependency α))
-  (picker : Finset (Finset α) → Option (Finset α)) : SchemaTree α :=
-    let violators := find_BCNF_violators R F
-    if violators = ∅ then SchemaTree.leaf R
-    else match picker violators with
-      | none => SchemaTree.leaf R
-      | some X =>
-        if h_X : X ∈ violators then
-          have h_violator : is_violator X R F := by
-            dsimp [violators, find_BCNF_violators] at h_X
-            exact (Finset.mem_filter.mp h_X).2
-          let R₁ := attr_closure_proj F X R
-          let R₂ := (R \ attr_closure_proj F X R) ∪ X
-          SchemaTree.node R R₁ R₂ (BCNF_decompose R₁ F picker) (BCNF_decompose R₂ F picker)
-        else SchemaTree.leaf R
-termination_by R.card
-decreasing_by
-  · exact Finset.card_lt_card (R1_subset_R h_violator)
-  · exact Finset.card_lt_card (R2_subset_R h_violator)
-
 lemma BCNF_step_cover {X R : Finset α} {F : Finset (FunctionalDependency α)}
   (h_violator : is_violator X R F) :
   attr_closure_proj F X R ∪ ((R \ attr_closure_proj F X R) ∪ X) = R := by
@@ -156,6 +126,27 @@ lemma BCNF_step_cover {X R : Finset α} {F : Finset (FunctionalDependency α)}
   rcases h_violator with ⟨h_X, _⟩
   rw [h_R_ac_eq_R, Finset.union_eq_right]
   trivial
+
+def BCNF_decompose
+  (R : Finset α) (F : Finset (FunctionalDependency α))
+  (picker : Finset (Finset α) → Option (Finset α)) : DecompositionTree R :=
+    let violators := find_BCNF_violators R F
+    if violators = ∅ then DecompositionTree.leaf R
+    else match picker violators with
+      | none => DecompositionTree.leaf R
+      | some X =>
+        if h_X : X ∈ violators then
+          have h_violator : is_violator X R F := by
+            dsimp [violators, find_BCNF_violators] at h_X
+            exact (Finset.mem_filter.mp h_X).2
+          let R₁ := attr_closure_proj F X R
+          let R₂ := (R \ attr_closure_proj F X R) ∪ X
+          DecompositionTree.node (Decomposition.mk R₁ R₂ (BCNF_step_cover h_violator)) (BCNF_decompose R₁ F picker) (BCNF_decompose R₂ F picker)
+        else DecompositionTree.leaf R
+termination_by R.card
+decreasing_by
+  · exact Finset.card_lt_card (R1_subset_R h_violator)
+  · exact Finset.card_lt_card (R2_subset_R h_violator)
 
 lemma BCNF_step_intersection {X R : Finset α} {F : Finset (FunctionalDependency α)}
   (h_violator : is_violator X R F) :
@@ -192,7 +183,7 @@ lemma restrict_dom {α μ : Type} (t : α →. μ) {S : Set α} (h_sub : S ⊆ t
     unfold PFun.restrict Part.restrict
     simp
 
-theorem BCNF_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependency α)}
+theorem BCNF_decompose_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependency α)}
   (h_violator : is_violator X R F) :
   let d : Decomposition R := {
     left := attr_closure_proj F X R,
@@ -302,19 +293,40 @@ theorem BCNF_step_is_lossless {X R : Finset α} {F : Finset (FunctionalDependenc
             simp_all
       simp_all
 
-def all_are_BCNF (T : SchemaTree α) (F : Finset (FunctionalDependency α)) : Prop :=
+theorem BCNF_decompose_is_lossless {R : Finset α} {F : Finset (FunctionalDependency α)}
+  {picker : Finset (Finset α) → Option (Finset α)}
+  (h_picker_valid : is_picker_valid picker) :
+  (BCNF_decompose R F picker).is_lossless F := by
+  rw [is_picker_valid] at h_picker_valid
+  induction R using BCNF_decompose.induct with
+  | F => exact F
+  | picker vlts => exact picker vlts
+  | case1 _ vlts =>
+    unfold BCNF_decompose DecompositionTree.is_lossless
+    simp_all [vlts]
+  | case2 _ vlts =>
+    unfold BCNF_decompose DecompositionTree.is_lossless
+    simp_all [vlts]
+  | case3 _ vlts _ _ _ _ h_X_vlt R₁ R₂ =>
+    unfold BCNF_decompose DecompositionTree.is_lossless
+    simp_all [vlts, R₁, R₂]
+    exact BCNF_decompose_step_is_lossless h_X_vlt
+  | case4 _ _ h_vlt => next h_X' =>
+    obtain ⟨_, h_X'⟩ := h_picker_valid.resolve_left h_vlt
+    simp_all
+
+def all_are_BCNF {R : Finset α} (T : DecompositionTree R) (F : Finset (FunctionalDependency α)) : Prop :=
   ∀ {L : Finset α}, L ∈ T.leaves → is_BCNF L F
 
 theorem BCNF_decompose_leaves_are_BCNF {R : Finset α} {F : Finset (FunctionalDependency α)}
   {picker : Finset (Finset α) → Option (Finset α)}
   (h_picker_valid : is_picker_valid picker) :
   all_are_BCNF (BCNF_decompose R F picker) F := by
-  rw [is_picker_valid] at h_picker_valid
   induction R using BCNF_decompose.induct with
   | F => exact F
   | picker vlts => exact picker vlts
-  | case1 R vlts => next h_no_vlt =>
-    simp_all [vlts, all_are_BCNF, BCNF_decompose, SchemaTree.leaves]
+  | case1 _ vlts => next h_no_vlt =>
+    simp_all [vlts, all_are_BCNF, BCNF_decompose, DecompositionTree.leaves]
     rw [BCNF_sem_eq_syn]
     intro X h_X
     simp [find_BCNF_violators] at h_no_vlt
@@ -322,16 +334,16 @@ theorem BCNF_decompose_leaves_are_BCNF {R : Finset α} {F : Finset (FunctionalDe
     simp [is_violator] at h_X_not_vlt
     apply h_X_not_vlt at h_X
     simp_all [imp_iff_not_or]
-  | case2 R vlts h_vlt => next h_pick_none =>
+  | case2 _ vlts h_vlt => next h_pick_none =>
     simp_all [vlts]
     obtain ⟨h_pick_X, _⟩ := h_picker_valid.resolve_left h_vlt
     simp_all
-  | case3 R vlts h_vlt X h_X h_X' h_X_vlt R₁ R₂ =>
-    simp_all [vlts, R₁, R₂]
+  | case3 _ vlts =>
+    simp_all [vlts]
     rw [BCNF_decompose, all_are_BCNF]
     simp_all
     intro L h_L
-    rw [SchemaTree.leaves, Finset.mem_union] at h_L
+    rw [DecompositionTree.leaves, Finset.mem_union] at h_L
     rcases h_L with h_L₁ | h_L₂
     · next ih₁ _ =>
       rw [all_are_BCNF] at ih₁
@@ -339,7 +351,7 @@ theorem BCNF_decompose_leaves_are_BCNF {R : Finset α} {F : Finset (FunctionalDe
     · next ih₂ =>
       rw [all_are_BCNF] at ih₂
       exact ih₂ h_L₂
-  | case4 R vlts h_vlt X h_X => next h_X' =>
+  | case4 _ _ h_vlt => next h_X' =>
     obtain ⟨_, h_X'⟩ := h_picker_valid.resolve_left h_vlt
     simp_all
 
